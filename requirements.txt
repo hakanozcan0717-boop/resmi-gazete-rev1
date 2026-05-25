@@ -9,3 +9,4 @@ sentence-transformers
 openai
 python-dotenv
 psycopg2-binary
+qdrant-client

@@ -12,3 +12,4 @@ data/downloads/*
 .vscode/
 .idea/
 
+vector_db/
