@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>RAG + LLM Soru-Cevap</h2>
+    <p class="muted">
+        Önce <code>python main.py rag-index</code> komutunu çalıştırmalısın.
+        Sonra burada Resmî Gazete verilerine doğal dille soru sorabilirsin.
+    </p>
+
+    <form method="post">
+        <input type="text" name="question" placeholder="Örn: İhale ile ilgili düzenlemeler nelerdir?" value="{{ question }}">
+
+        <select name="mode">
+            <option value="sources" {% if mode == 'sources' %}selected{% endif %}>Sadece kaynakları getir</option>
+            <option value="llm" {% if mode == 'llm' %}selected{% endif %}>LLM ile cevap üret</option>
+        </select>
+
+        <button type="submit">Sor</button>
+    </form>
+</div>
+
+{% if error %}
+<div class="card error">
+    <strong>Hata:</strong> {{ error }}
+</div>
+{% endif %}
+
+{% if answer %}
+<div class="card">
+    <h3>Cevap / Bulunan Kaynaklar</h3>
+    <pre>{{ answer }}</pre>
+</div>
+{% endif %}
+{% endblock %}

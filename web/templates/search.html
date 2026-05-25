@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Arama Sonuçları: {{ q }}</h2>
+    {% if not results %}
+        <p>Sonuç bulunamadı.</p>
+    {% else %}
+        <table>
+            <tr><th>Tarih</th><th>Başlık</th><th>Özet</th><th>Skor</th></tr>
+            {% for r in results %}
+            <tr>
+                <td>{{ r.date }}</td>
+                <td><a href="/item/{{ r.id }}">{{ r.title }}</a><br><span class="tag">{{ r.category }}</span></td>
+                <td>{{ r.snippet }}</td>
+                <td>{{ "%.2f"|format(r.score) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+</div>
+{% endblock %}

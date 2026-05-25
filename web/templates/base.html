@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <title>{{ app_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background: #f4f6f8; color: #222; }
+        header { background: #1f2937; color: white; padding: 18px 28px; }
+        .container { max-width: 1200px; margin: 24px auto; padding: 0 16px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,.08); margin-bottom: 16px; }
+        input[type=text] { width: 70%; padding: 11px; border: 1px solid #ddd; border-radius: 8px; }
+        select { padding: 11px; border: 1px solid #ddd; border-radius: 8px; }
+        button, .btn { padding: 11px 14px; border: 0; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; text-decoration: none; display: inline-block; margin: 2px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: left; vertical-align: top; }
+        th { background: #f9fafb; }
+        mark { background: #fde68a; padding: 1px 3px; border-radius: 4px; }
+        .muted { color: #666; font-size: .92em; }
+        .tag { background: #e5e7eb; border-radius: 999px; padding: 4px 8px; font-size: .85em; display: inline-block; margin: 2px; }
+        .error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; padding: 12px; border-radius: 8px; }
+        pre { white-space: pre-wrap; word-wrap: break-word; }
+        @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } input[type=text] { width: 100%; margin-bottom: 8px; } }
+    </style>
+</head>
+<body>
+<header>
+    <h1>{{ app_name }}</h1>
+    <div class="muted" style="color:#d1d5db;">SQLite + RAG + LLM destekli Resmî Gazete analiz paneli</div>
+</header>
+
+<div class="container">
+    <div class="card">
+        <form action="/search" method="get">
+            <input type="text" name="q" placeholder="Örn: ihale, yönetmelik, atama, vergi..." value="{{ q or '' }}">
+            <button type="submit">Ara</button>
+            <a class="btn" href="/">Ana sayfa</a>
+            <a class="btn" href="/stats">Analiz</a>
+            <a class="btn" href="/rag">RAG Soru-Cevap</a>
+        </form>
+    </div>
+
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

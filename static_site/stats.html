@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <title>Resmî Gazete Analiz Raporu</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            background: #f4f6f8;
+            color: #222;
+        }
+
+        header {
+            background: #1f2937;
+            color: white;
+            padding: 22px 32px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 24px auto;
+            padding: 0 16px;
+        }
+
+        .card {
+            background: white;
+            padding: 18px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.08);
+            margin-bottom: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border-bottom: 1px solid #eee;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f9fafb;
+        }
+
+        .tag {
+            background: #e5e7eb;
+            border-radius: 999px;
+            padding: 4px 8px;
+            display: inline-block;
+            font-size: 13px;
+        }
+
+        a {
+            color: #2563eb;
+        }
+
+        .muted {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .nav a {
+            margin-right: 12px;
+        }
+    </style>
+</head>
+
+<body>
+<header>
+    <h1>Resmî Gazete Analiz Raporu</h1>
+    <p>GitHub Actions ile otomatik güncellenen Resmî Gazete raporu</p>
+</header>
+
+<div class="container">
+    <div class="card nav">
+        <a href="index.html">Ana sayfa</a>
+        <a href="stats.html">Analiz</a>
+        <a href="data.json">JSON veri</a>
+    </div>
+
+    
+    <div class="card">
+        <h2>Genel Bilgi</h2>
+        <p>Toplam belge: <strong>354</strong></p>
+        <p>Rapor üretim zamanı: 2026-05-25T15:09:31</p>
+    </div>
+
+    <div class="card">
+        <h2>Kategori Dağılımı</h2>
+
+        <table>
+            <tr>
+                <th>Kategori</th>
+                <th>Adet</th>
+            </tr>
+    
+            <tr>
+                <td>Eğitim</td>
+                <td>87</td>
+            </tr>
+        
+            <tr>
+                <td>Karar</td>
+                <td>82</td>
+            </tr>
+        
+            <tr>
+                <td>Diğer</td>
+                <td>69</td>
+            </tr>
+        
+            <tr>
+                <td>Yönetmelik</td>
+                <td>46</td>
+            </tr>
+        
+            <tr>
+                <td>İhale</td>
+                <td>30</td>
+            </tr>
+        
+            <tr>
+                <td>Tebliğ</td>
+                <td>19</td>
+            </tr>
+        
+            <tr>
+                <td>Kanun</td>
+                <td>8</td>
+            </tr>
+        
+            <tr>
+                <td>Atama</td>
+                <td>5</td>
+            </tr>
+        
+            <tr>
+                <td>Vergi/Maliye</td>
+                <td>3</td>
+            </tr>
+        
+            <tr>
+                <td>Sağlık</td>
+                <td>3</td>
+            </tr>
+        
+            <tr>
+                <td>Çevre/İmar</td>
+                <td>2</td>
+            </tr>
+        
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>En Sık Kelimeler</h2>
+
+        <table>
+            <tr>
+                <th>Kelime</th>
+                <th>Adet</th>
+            </tr>
+    
+            <tr>
+                <td>resmî</td>
+                <td>4327</td>
+            </tr>
+        
+            <tr>
+                <td>sayı</td>
+                <td>3740</td>
+            </tr>
+        
+            <tr>
+                <td>sayfa</td>
+                <td>3458</td>
+            </tr>
+        
+            <tr>
+                <td>nisan</td>
+                <td>2835</td>
+            </tr>
+        
+            <tr>
+                <td>ihale</td>
+                <td>2412</td>
+            </tr>
+        
+            <tr>
+                <td>bir</td>
+                <td>2309</td>
+            </tr>
+        
+            <tr>
+                <td>ilgili</td>
+                <td>2000</td>
+            </tr>
+        
+            <tr>
+                <td>lisans</td>
+                <td>1254</td>
+            </tr>
+        
+            <tr>
+                <td>başvuru</td>
+                <td>1235</td>
+            </tr>
+        
+            <tr>
+                <td>mayıs</td>
+                <td>1233</td>
+            </tr>
+        
+            <tr>
+                <td>no</td>
+                <td>1128</td>
+            </tr>
+        
+            <tr>
+                <td>öğretim</td>
+                <td>1052</td>
+            </tr>
+        
+            <tr>
+                <td>belirtilen</td>
+                <td>1034</td>
+            </tr>
+        
+            <tr>
+                <td>yer</td>
+                <td>1018</td>
+            </tr>
+        
+            <tr>
+                <td>halinde</td>
+                <td>1003</td>
+            </tr>
+        
+            <tr>
+                <td>yönetim</td>
+                <td>993</td>
+            </tr>
+        
+            <tr>
+                <td>iş</td>
+                <td>941</td>
+            </tr>
+        
+            <tr>
+                <td>edilen</td>
+                <td>934</td>
+            </tr>
+        
+            <tr>
+                <td>teklif</td>
+                <td>916</td>
+            </tr>
+        
+            <tr>
+                <td>olması</td>
+                <td>911</td>
+            </tr>
+        
+            <tr>
+                <td>uygun</td>
+                <td>905</td>
+            </tr>
+        
+            <tr>
+                <td>alan</td>
+                <td>893</td>
+            </tr>
+        
+            <tr>
+                <td>üniversitesi</td>
+                <td>840</td>
+            </tr>
+        
+            <tr>
+                <td>diğer</td>
+                <td>840</td>
+            </tr>
+        
+            <tr>
+                <td>yönetmelik</td>
+                <td>836</td>
+            </tr>
+        
+            <tr>
+                <td>belgesi</td>
+                <td>830</td>
+            </tr>
+        
+            <tr>
+                <td>aynı</td>
+                <td>819</td>
+            </tr>
+        
+            <tr>
+                <td>dair</td>
+                <td>814</td>
+            </tr>
+        
+            <tr>
+                <td>9d</td>
+                <td>809</td>
+            </tr>
+        
+            <tr>
+                <td>müdürlüğünden</td>
+                <td>804</td>
+            </tr>
+        
+            <tr>
+                <td>kabul</td>
+                <td>796</td>
+            </tr>
+        
+            <tr>
+                <td>sınav</td>
+                <td>768</td>
+            </tr>
+        
+            <tr>
+                <td>ilan</td>
+                <td>762</td>
+            </tr>
+        
+            <tr>
+                <td>sağlık</td>
+                <td>754</td>
+            </tr>
+        
+            <tr>
+                <td>uygulama</td>
+                <td>748</td>
+            </tr>
+        
+            <tr>
+                <td>yüksek</td>
+                <td>742</td>
+            </tr>
+        
+            <tr>
+                <td>kurulu</td>
+                <td>741</td>
+            </tr>
+        
+            <tr>
+                <td>eğitim</td>
+                <td>695</td>
+            </tr>
+        
+            <tr>
+                <td>şekilde</td>
+                <td>692</td>
+            </tr>
+        
+            <tr>
+                <td>tl</td>
+                <td>680</td>
+            </tr>
+        
+            <tr>
+                <td>ihaleye</td>
+                <td>679</td>
+            </tr>
+        
+            <tr>
+                <td>merkezin</td>
+                <td>677</td>
+            </tr>
+        
+            <tr>
+                <td>9c</td>
+                <td>658</td>
+            </tr>
+        
+            <tr>
+                <td>bulunan</td>
+                <td>656</td>
+            </tr>
+        
+            <tr>
+                <td>geçici</td>
+                <td>654</td>
+            </tr>
+        
+            <tr>
+                <td>sahip</td>
+                <td>646</td>
+            </tr>
+        
+            <tr>
+                <td>yapı</td>
+                <td>644</td>
+            </tr>
+        
+            <tr>
+                <td>tarihi</td>
+                <td>642</td>
+            </tr>
+        
+            <tr>
+                <td>belge</td>
+                <td>630</td>
+            </tr>
+        
+            <tr>
+                <td>tr</td>
+                <td>615</td>
+            </tr>
+        
+        </table>
+    </div>
+    <div class="card"><h2>Konu Kümeleri</h2>
+                <h3>Küme 0 - 24 belge</h3>
+                <p>yargi, ceza, mahkemesinden, lanlari, asliye, lânlari, büyükçekmece, van, sayı, resmî</p>
+            
+                <h3>Küme 1 - 29 belge</h3>
+                <p>hale, eksi, artirma, ltme, lecekti, müdürlüğünden, edi, lânlari, başkanlığından, belediye</p>
+            
+                <h3>Küme 2 - 213 belge</h3>
+                <p>yönetmeli, merkezin, yönetmelik, kararı, baysal, abant, zzet, mahkemesinin, anayasa, yönetim</p>
+            
+                <h3>Küme 3 - 29 belge</h3>
+                <p>rektörlüğünden, tli, çeşi, müdürlüğünden, üniversitesi, lanlar, bakanlığından, turizm, kültür, şehircilik</p>
+            
+                <h3>Küme 4 - 59 belge</h3>
+                <p>cumhurbaşkani, bankasi, nisan, tayyip, recep, erdoğan, merkez, karari, sayı, cumartesi</p>
+            </div>
+</div>
+</body>
+</html>

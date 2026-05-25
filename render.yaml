@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: resmi-gazete-rag
+    env: python
+    plan: free
+    buildCommand: |
+      python -m pip install --upgrade pip
+      pip install -r requirements.txt
+      python main.py rag-index
+    startCommand: gunicorn app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: OPENAI_MODEL
+        value: gpt-5.2

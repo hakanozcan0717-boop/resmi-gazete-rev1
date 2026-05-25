@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+*.sqlite
+*.sqlite3
+
+data/downloads/*
+!data/downloads/.gitkeep
+
+.vscode/
+.idea/
+
+vector_db/

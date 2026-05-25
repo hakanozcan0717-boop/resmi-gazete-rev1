@@ -1,0 +1,654 @@
+{
+  "created_at": "2026-05-25T15:09:31",
+  "total_documents": 354,
+  "category_distribution": [
+    [
+      "Eğitim",
+      87
+    ],
+    [
+      "Karar",
+      82
+    ],
+    [
+      "Diğer",
+      69
+    ],
+    [
+      "Yönetmelik",
+      46
+    ],
+    [
+      "İhale",
+      30
+    ],
+    [
+      "Tebliğ",
+      19
+    ],
+    [
+      "Kanun",
+      8
+    ],
+    [
+      "Atama",
+      5
+    ],
+    [
+      "Vergi/Maliye",
+      3
+    ],
+    [
+      "Sağlık",
+      3
+    ],
+    [
+      "Çevre/İmar",
+      2
+    ]
+  ],
+  "date_distribution": [
+    [
+      "2026-05-12",
+      6
+    ],
+    [
+      "2026-05-11",
+      10
+    ],
+    [
+      "2026-05-10",
+      8
+    ],
+    [
+      "2026-05-09",
+      11
+    ],
+    [
+      "2026-05-08",
+      19
+    ],
+    [
+      "2026-05-07",
+      13
+    ],
+    [
+      "2026-05-06",
+      8
+    ],
+    [
+      "2026-05-05",
+      10
+    ],
+    [
+      "2026-05-04",
+      11
+    ],
+    [
+      "2026-05-03",
+      21
+    ],
+    [
+      "2026-05-02",
+      10
+    ],
+    [
+      "2026-05-01",
+      26
+    ],
+    [
+      "2026-04-30",
+      22
+    ],
+    [
+      "2026-04-29",
+      11
+    ],
+    [
+      "2026-04-28",
+      9
+    ],
+    [
+      "2026-04-27",
+      7
+    ],
+    [
+      "2026-04-26",
+      6
+    ],
+    [
+      "2026-04-25",
+      29
+    ],
+    [
+      "2026-04-24",
+      15
+    ],
+    [
+      "2026-04-23",
+      1
+    ],
+    [
+      "2026-04-22",
+      10
+    ],
+    [
+      "2026-04-21",
+      7
+    ],
+    [
+      "2026-04-20",
+      8
+    ],
+    [
+      "2026-04-19",
+      6
+    ],
+    [
+      "2026-04-18",
+      13
+    ],
+    [
+      "2026-04-17",
+      21
+    ],
+    [
+      "2026-04-16",
+      7
+    ],
+    [
+      "2026-04-15",
+      9
+    ],
+    [
+      "2026-04-14",
+      7
+    ],
+    [
+      "2026-04-13",
+      13
+    ]
+  ],
+  "institution_distribution": [
+    [
+      "Abant İzzet\n Baysal Üni̇versi̇tesi̇",
+      11
+    ],
+    [
+      "Aydin Adnan\n Menderes Üni̇versi̇tesi̇",
+      6
+    ],
+    [
+      "Bolu Abant\n İzzet Baysal Üni̇versi̇tesi̇",
+      6
+    ],
+    [
+      "Mustafa Kemal\n Üni̇versi̇tesi̇",
+      6
+    ],
+    [
+      "Yedi̇tepe\n Üni̇versi̇tesi̇",
+      5
+    ],
+    [
+      "İstanbul Tekni̇k Üni̇versi̇tesi̇",
+      3
+    ],
+    [
+      "Afet Ve Aci̇l Durum Yöneti̇mi̇ Başkanliği",
+      2
+    ],
+    [
+      "Altinbaş Üni̇versi̇tesi̇",
+      2
+    ],
+    [
+      "Ege\n Üni̇versi̇tesi̇",
+      2
+    ],
+    [
+      "Karadeni̇z\n Tekni̇k Üni̇versi̇tesi̇",
+      2
+    ],
+    [
+      "İstanbul Gedi̇k Üni̇versi̇tesi̇",
+      2
+    ],
+    [
+      "Adiyaman\n Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Akdeni̇z\n Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Aksaray\n Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Aksaray Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Anadolu\n Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Anadolu Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Ankara\n Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Ankara Haci\n Bayram Veli̇ Üni̇versi̇tesi̇",
+      1
+    ],
+    [
+      "Ankara Lokomoti̇f Bakim Atölye Müdürlüğü",
+      1
+    ]
+  ],
+  "top_words": [
+    [
+      "resmî",
+      4327
+    ],
+    [
+      "sayı",
+      3740
+    ],
+    [
+      "sayfa",
+      3458
+    ],
+    [
+      "nisan",
+      2835
+    ],
+    [
+      "ihale",
+      2412
+    ],
+    [
+      "bir",
+      2309
+    ],
+    [
+      "ilgili",
+      2000
+    ],
+    [
+      "lisans",
+      1254
+    ],
+    [
+      "başvuru",
+      1235
+    ],
+    [
+      "mayıs",
+      1233
+    ],
+    [
+      "no",
+      1128
+    ],
+    [
+      "öğretim",
+      1052
+    ],
+    [
+      "belirtilen",
+      1034
+    ],
+    [
+      "yer",
+      1018
+    ],
+    [
+      "halinde",
+      1003
+    ],
+    [
+      "yönetim",
+      993
+    ],
+    [
+      "iş",
+      941
+    ],
+    [
+      "edilen",
+      934
+    ],
+    [
+      "teklif",
+      916
+    ],
+    [
+      "olması",
+      911
+    ],
+    [
+      "uygun",
+      905
+    ],
+    [
+      "alan",
+      893
+    ],
+    [
+      "üniversitesi",
+      840
+    ],
+    [
+      "diğer",
+      840
+    ],
+    [
+      "yönetmelik",
+      836
+    ],
+    [
+      "belgesi",
+      830
+    ],
+    [
+      "aynı",
+      819
+    ],
+    [
+      "dair",
+      814
+    ],
+    [
+      "9d",
+      809
+    ],
+    [
+      "müdürlüğünden",
+      804
+    ],
+    [
+      "kabul",
+      796
+    ],
+    [
+      "sınav",
+      768
+    ],
+    [
+      "ilan",
+      762
+    ],
+    [
+      "sağlık",
+      754
+    ],
+    [
+      "uygulama",
+      748
+    ],
+    [
+      "yüksek",
+      742
+    ],
+    [
+      "kurulu",
+      741
+    ],
+    [
+      "eğitim",
+      695
+    ],
+    [
+      "şekilde",
+      692
+    ],
+    [
+      "tl",
+      680
+    ],
+    [
+      "ihaleye",
+      679
+    ],
+    [
+      "merkezin",
+      677
+    ],
+    [
+      "9c",
+      658
+    ],
+    [
+      "bulunan",
+      656
+    ],
+    [
+      "geçici",
+      654
+    ],
+    [
+      "sahip",
+      646
+    ],
+    [
+      "yapı",
+      644
+    ],
+    [
+      "tarihi",
+      642
+    ],
+    [
+      "belge",
+      630
+    ],
+    [
+      "tr",
+      615
+    ]
+  ],
+  "content_length": {
+    "min": 81,
+    "max": 365714,
+    "mean": 13529.36,
+    "median": 677.0
+  },
+  "topic_clusters": [
+    {
+      "cluster": 0,
+      "size": 24,
+      "keywords": [
+        "yargi",
+        "ceza",
+        "mahkemesinden",
+        "lanlari",
+        "asliye",
+        "lânlari",
+        "büyükçekmece",
+        "van",
+        "sayı",
+        "resmî"
+      ],
+      "sample_documents": [
+        {
+          "id": 352,
+          "title": "YARGI İLANLARI"
+        },
+        {
+          "id": 345,
+          "title": "YARGI İLANLARI"
+        },
+        {
+          "id": 336,
+          "title": "YARGI İLANLARI"
+        },
+        {
+          "id": 327,
+          "title": "YARGI İLANLARI"
+        },
+        {
+          "id": 10,
+          "title": "YARGI İLANLARI"
+        }
+      ]
+    },
+    {
+      "cluster": 1,
+      "size": 29,
+      "keywords": [
+        "hale",
+        "eksi",
+        "artirma",
+        "ltme",
+        "lecekti",
+        "müdürlüğünden",
+        "edi",
+        "lânlari",
+        "başkanlığından",
+        "belediye"
+      ],
+      "sample_documents": [
+        {
+          "id": 353,
+          "title": "ARTIRMA, EKSİLTME VE İHALE İLÂNLARI"
+        },
+        {
+          "id": 346,
+          "title": "ARTIRMA, EKSİLTME VE İHALE İLÂNLARI"
+        },
+        {
+          "id": 337,
+          "title": "ARTIRMA, EKSİLTME VE İHALE İLÂNLARI"
+        },
+        {
+          "id": 328,
+          "title": "ARTIRMA, EKSİLTME VE İHALE İLÂNLARI"
+        },
+        {
+          "id": 318,
+          "title": "ARTIRMA, EKSİLTME VE İHALE İLÂNLARI"
+        }
+      ]
+    },
+    {
+      "cluster": 2,
+      "size": 213,
+      "keywords": [
+        "yönetmeli",
+        "merkezin",
+        "yönetmelik",
+        "kararı",
+        "baysal",
+        "abant",
+        "zzet",
+        "mahkemesinin",
+        "anayasa",
+        "yönetim"
+      ],
+      "sample_documents": [
+        {
+          "id": 351,
+          "title": "–– İstanbul Teknik \nÜniversitesi Maden Optimizasyon ve Planlama Uygulama ve Araştırma Merkezi \nYönetmeliği"
+        },
+        {
+          "id": 350,
+          "title": "–– İstanbul Teknik \nÜniversitesi Lisansüstü Eğitim ve Öğretim Yönetmeliğinde Değişiklik Yapılmasına \nDair Yönetmelik"
+        },
+        {
+          "id": 349,
+          "title": "12.05.2026 Resmî Gazete PDF"
+        },
+        {
+          "id": 344,
+          "title": "11 Mayıs 2026 PAZARTESİ"
+        },
+        {
+          "id": 343,
+          "title": "11 Mayıs 2026 PAZARTESİ"
+        }
+      ]
+    },
+    {
+      "cluster": 3,
+      "size": 29,
+      "keywords": [
+        "rektörlüğünden",
+        "tli",
+        "çeşi",
+        "müdürlüğünden",
+        "üniversitesi",
+        "lanlar",
+        "bakanlığından",
+        "turizm",
+        "kültür",
+        "şehircilik"
+      ],
+      "sample_documents": [
+        {
+          "id": 354,
+          "title": "ÇEŞİTLİ İLANLAR"
+        },
+        {
+          "id": 347,
+          "title": "ÇEŞİTLİ İLANLAR"
+        },
+        {
+          "id": 338,
+          "title": "ÇEŞİTLİ İLANLAR"
+        },
+        {
+          "id": 329,
+          "title": "ÇEŞİTLİ İLANLAR"
+        },
+        {
+          "id": 319,
+          "title": "ÇEŞİTLİ İLANLAR"
+        }
+      ]
+    },
+    {
+      "cluster": 4,
+      "size": 59,
+      "keywords": [
+        "cumhurbaşkani",
+        "bankasi",
+        "nisan",
+        "tayyip",
+        "recep",
+        "erdoğan",
+        "merkez",
+        "karari",
+        "sayı",
+        "cumartesi"
+      ],
+      "sample_documents": [
+        {
+          "id": 348,
+          "title": "MERKEZ BANKASI"
+        },
+        {
+          "id": 330,
+          "title": "MERKEZ BANKASI"
+        },
+        {
+          "id": 310,
+          "title": "–– Yeni Taşkent Bölgesi \n(Mersin-Tarsus OSB) İltisak Hattı Projesi Kapsamında Mersin İli Sınırları \nİçerisinde Yer Alan Bazı Taşınmazlar ile Üzerlerindeki Muhdesatın Türkiye \nCumhuriyeti Devlet Demiryolları İşletmesi Genel Müdürlüğü Tarafından Acele \nKamulaştırılması Hakkında Karar (Karar Sayısı: 11302)"
+        },
+        {
+          "id": 309,
+          "title": "–– 154 kV İzdemir Arazi \nGES-Gördes TM Enerji İletim Hattı Projesi Kapsamında Bazı Taşınmazların Türkiye \nElektrik İletim Anonim Şirketi Genel Müdürlüğü Tarafından Acele Kamulaştırılması \nHakkında Karar (Karar Sayısı: 11301)"
+        },
+        {
+          "id": 13,
+          "title": "MERKEZ BANKASI"
+        }
+      ]
+    }
+  ]
+}

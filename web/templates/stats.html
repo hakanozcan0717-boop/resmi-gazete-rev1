@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+    <div class="card"><h2>Kategoriler</h2><table><tr><th>Kategori</th><th>Adet</th></tr>{% for cat, n in report["category_distribution"] %}<tr><td>{{ cat }}</td><td>{{ n }}</td></tr>{% endfor %}</table></div>
+    <div class="card"><h2>En Sık Kelimeler</h2><table><tr><th>Kelime</th><th>Adet</th></tr>{% for word, n in report["top_words"][:30] %}<tr><td>{{ word }}</td><td>{{ n }}</td></tr>{% endfor %}</table></div>
+</div>
+<div class="card">
+    <h2>Konu Kümeleri</h2>
+    {% if report["topic_clusters"] is string %}
+        <p>{{ report["topic_clusters"] }}</p>
+    {% else %}
+        {% for c in report["topic_clusters"] %}
+            <h3>Küme {{ c["cluster"] }} - {{ c["size"] }} belge</h3>
+            <p>{% for k in c["keywords"] %}<span class="tag">{{ k }}</span>{% endfor %}</p>
+            <ul>{% for d in c["sample_documents"] %}<li><a href="/item/{{ d['id'] }}">{{ d["title"] }}</a></li>{% endfor %}</ul>
+        {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

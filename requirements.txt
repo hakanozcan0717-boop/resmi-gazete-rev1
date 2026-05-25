@@ -1,0 +1,10 @@
+requests
+beautifulsoup4
+flask
+pypdf
+scikit-learn
+gunicorn
+chromadb
+sentence-transformers
+openai
+python-dotenv
