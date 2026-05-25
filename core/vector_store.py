@@ -1,20 +1,10 @@
 # -*- coding: utf-8 -*-
 """
-Qdrant Vector Store Modülü
+Render Free icin hafif Qdrant Vector Store.
 
-Bu dosya RAG için metin parçalarını embedding vektörlerine çevirir
-ve Qdrant Cloud vektör veritabanına kaydeder.
-
-Eski sistem:
-    ChromaDB + vector_db klasörü
-
-Yeni sistem:
-    Qdrant Cloud
-
-Gerekli environment variables:
-    QDRANT_URL
-    QDRANT_API_KEY
-    QDRANT_COLLECTION
+Bu surum Render icinde sentence-transformers / torch yuklemez.
+Embedding islemini OpenAI Embeddings API ile uzaktan yapar.
+Qdrant vektorleri saklar ve arama yapar.
 """
 
 from __future__ import annotations
@@ -23,61 +13,53 @@ import hashlib
 import os
 from typing import Dict, List
 
+from openai import OpenAI
 from qdrant_client import QdrantClient
 from qdrant_client.http import models
-from sentence_transformers import SentenceTransformer
 
 
 class VectorStore:
-    """
-    SentenceTransformers + Qdrant tabanlı vektör veritabanı sınıfı.
-    """
-
     def __init__(
         self,
         persist_dir: str = "vector_db",
         collection_name: str = "resmi_gazete",
-        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+        model_name: str = "text-embedding-3-small",
     ):
         self.qdrant_url = os.getenv("QDRANT_URL")
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY")
         self.collection_name = os.getenv("QDRANT_COLLECTION", collection_name)
-        self.model_name = model_name
+
+        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+        self.embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL", model_name)
 
         if not self.qdrant_url:
-            raise ValueError(
-                "QDRANT_URL bulunamadı. "
-                "Render Environment Variables ve GitHub Secrets içine QDRANT_URL eklemelisin."
-            )
-
+            raise ValueError("QDRANT_URL bulunamadı.")
         if not self.qdrant_api_key:
-            raise ValueError(
-                "QDRANT_API_KEY bulunamadı. "
-                "Render Environment Variables ve GitHub Secrets içine QDRANT_API_KEY eklemelisin."
-            )
+            raise ValueError("QDRANT_API_KEY bulunamadı.")
+        if not self.openai_api_key:
+            raise ValueError("OPENAI_API_KEY bulunamadı. OpenAI embedding için gerekli.")
 
-        self.client = QdrantClient(
+        self.qdrant = QdrantClient(
             url=self.qdrant_url,
             api_key=self.qdrant_api_key,
             timeout=60,
         )
 
-        self.model = SentenceTransformer(model_name)
-        self.vector_size = self.model.get_sentence_embedding_dimension()
+        self.openai = OpenAI(api_key=self.openai_api_key)
+
+        # text-embedding-3-small vektor boyutu
+        self.vector_size = 1536
 
         self._ensure_collection()
 
     def _ensure_collection(self) -> None:
-        """
-        Qdrant collection yoksa oluşturur.
-        """
-        collections = self.client.get_collections().collections
+        collections = self.qdrant.get_collections().collections
         collection_names = [c.name for c in collections]
 
         if self.collection_name in collection_names:
             return
 
-        self.client.create_collection(
+        self.qdrant.create_collection(
             collection_name=self.collection_name,
             vectors_config=models.VectorParams(
                 size=self.vector_size,
@@ -86,16 +68,21 @@ class VectorStore:
         )
 
     def _stable_point_id(self, raw_id: str) -> int:
-        """
-        Qdrant point id için metin ID'sinden stabil integer üretir.
-        """
         digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()
         return int(digest[:16], 16)
 
-    def add_documents(self, chunks: List[Dict], batch_size: int = 128) -> int:
-        """
-        Metin parçalarını Qdrant içine ekler.
-        """
+    def _embed_texts(self, texts: List[str]) -> List[List[float]]:
+        if not texts:
+            return []
+
+        response = self.openai.embeddings.create(
+            model=self.embedding_model,
+            input=texts,
+        )
+
+        return [item.embedding for item in response.data]
+
+    def add_documents(self, chunks: List[Dict], batch_size: int = 64) -> int:
         if not chunks:
             return 0
 
@@ -104,12 +91,7 @@ class VectorStore:
         for start in range(0, len(chunks), batch_size):
             batch = chunks[start:start + batch_size]
             texts = [chunk["text"] for chunk in batch]
-
-            embeddings = self.model.encode(
-                texts,
-                show_progress_bar=True,
-                normalize_embeddings=True,
-            ).tolist()
+            embeddings = self._embed_texts(texts)
 
             points = []
 
@@ -135,7 +117,7 @@ class VectorStore:
                     )
                 )
 
-            self.client.upsert(
+            self.qdrant.upsert(
                 collection_name=self.collection_name,
                 points=points,
             )
@@ -146,18 +128,12 @@ class VectorStore:
         return total_added
 
     def search(self, query: str, top_k: int = 5) -> List[Dict]:
-        """
-        Kullanıcı sorusuna en yakın metin parçalarını Qdrant'tan getirir.
-        """
         if not query.strip():
             return []
 
-        query_embedding = self.model.encode(
-            [query],
-            normalize_embeddings=True,
-        ).tolist()[0]
+        query_embedding = self._embed_texts([query])[0]
 
-        results = self.client.search(
+        results = self.qdrant.search(
             collection_name=self.collection_name,
             query_vector=query_embedding,
             limit=top_k,
