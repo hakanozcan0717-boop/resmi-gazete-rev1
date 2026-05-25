@@ -26,7 +26,7 @@ class VectorStore:
         self,
         persist_dir: str = "vector_db",
         collection_name: str = "resmi_gazete",
-        model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
     ):
         """
         persist_dir:
@@ -88,7 +88,8 @@ class VectorStore:
 
             embeddings = self.model.encode(
                 texts,
-                show_progress_bar=True
+                show_progress_bar=True,
+                normalize_embeddings=True
             ).tolist()
 
             self.collection.upsert(
