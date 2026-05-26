@@ -9,7 +9,7 @@ except Exception:
     requests = None
 
 class HttpClient:
-    def __init__(self, timeout: int = 30, sleep: float = 0.5):
+    def __init__(self, timeout: int = 60, sleep: float = 1.5):
         self.timeout = timeout
         self.sleep = sleep
         self.last_request_at = 0.0
@@ -42,7 +42,7 @@ class HttpClient:
                 for attempt in range(1, 4):
                     try:
                         print(f"[DENEME] {try_url} - {attempt}. deneme")
-                        r = self.session.get(try_url, timeout=(10, self.timeout), allow_redirects=True, headers=headers)
+                        r = self.session.get(try_url, timeout=(self.timeout, self.timeout), allow_redirects=True, headers=headers)
                         content_type = r.headers.get("content-type", "")
                         if r.status_code == 200 and r.content:
                             return r.status_code, r.content, content_type
