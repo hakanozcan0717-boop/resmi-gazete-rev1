@@ -28,7 +28,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          python main.py crawl --days 90
+          python main.py crawl --days 2
 
       - name: Qdrant RAG indeksini guncelle
         env:
