@@ -498,7 +498,7 @@ CEVAP:
 
         return prompt.strip()
 
-    def answer_with_llm(self, question: str, top_k: int = 5, model: str = "gpt-5.2") -> str:
+    def answer_with_llm(self, question: str, top_k: int = 5, model: str = None) -> str:
         """
         RAG + LLM cevabı üretir.
         """

@@ -24,7 +24,7 @@ class LLMClient:
             messages=[
                 {
                     "role": "system",
-                    "content": "Sen Resmî Gazete belgelerine göre cevap veren Türkçe bir analiz asistanısın."
+                    "content": "Sen Resmî Gazete belgelerine göre Türkçe cevap veren bir analiz asistanısın."
                 },
                 {
                     "role": "user",
