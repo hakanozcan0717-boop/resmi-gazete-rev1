@@ -46,3 +46,9 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python main.py analyze --json-out exports/gunluk_analiz.json
+
+      - name: Veritabani ozetini goster
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -c "from core.database import GazetteDB; db=GazetteDB(); r=db._fetchall('SELECT MIN(date) AS ilk_tarih, MAX(date) AS son_tarih, COUNT(DISTINCT date) AS gun_sayisi, COUNT(*) AS belge_sayisi FROM gazette_items')[0]; print('İlk tarih:', r['ilk_tarih']); print('Son tarih:', r['son_tarih']); print('Gün sayısı:', r['gun_sayisi']); print('Belge sayısı:', r['belge_sayisi'])"
