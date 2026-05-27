@@ -18,6 +18,7 @@ Amaç:
 from __future__ import annotations
 
 import re
+import unicodedata
 from typing import Dict, List, Optional
 
 from core.database import GazetteDB
@@ -106,6 +107,10 @@ class RAGEngine:
         for old, new in replacements.items():
             text = text.replace(old, new)
 
+        text = "".join(
+            char for char in unicodedata.normalize("NFKD", text)
+            if unicodedata.category(char) != "Mn"
+        )
         text = re.sub(r"\s+", " ", text)
         return text.strip()
 
@@ -333,6 +338,23 @@ class RAGEngine:
         normalized = self._normalize_text(title)
         return bool(re.fullmatch(r"\d{1,2}\s+\w+\s+\d{4}\s+\w+", normalized))
 
+    def _is_generic_listing_title(self, title: str) -> bool:
+        normalized = self._normalize_text(title).strip(" .,:;-")
+        generic_starts = [
+            "(1) bu yonetmelikte",
+            "bu yonetmelikte",
+            "ilgili yonetmelikte",
+            "yonetmelikte hukum",
+            "yonetmelikte adi gecen",
+            "bu yonetmelikte hukum",
+        ]
+        return (
+            not normalized
+            or self._is_weak_title(title)
+            or any(normalized.startswith(prefix) for prefix in generic_starts)
+            or normalized in {"yonetmelik", "yonetmeligi"}
+        )
+
     def _extract_better_title(self, title: str, text: str) -> str:
         if title and not self._is_weak_title(title):
             return title
@@ -342,14 +364,14 @@ class RAGEngine:
             normalized = self._normalize_text(line)
             if len(line) < 20 or len(line) > 250:
                 continue
-            if "yonetmelik" in normalized:
+            if "yonetmelik" in normalized and not self._is_generic_listing_title(line):
                 return line
 
         compact_text = re.sub(r"\s+", " ", text or "")
-        for match in re.finditer(r"([^.!?\n]{10,220}Yönetmeli(?:ği|k|ğinin|ğinde)[^.!?\n]{0,80})", compact_text):
+        for match in re.finditer(r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Yönetmeli(?:ği|k|ğinin|ğinde)[^.!?\n]{0,80})", compact_text):
             candidate = match.group(1).strip(" -–\t,;:")
             candidate = re.split(r"\s+MADDE\s+\d+", candidate, maxsplit=1)[0].strip(" -–\t,;:")
-            if 20 <= len(candidate) <= 250:
+            if 20 <= len(candidate) <= 250 and not self._is_generic_listing_title(candidate):
                 return candidate
 
         return title or "-"
@@ -401,6 +423,15 @@ class RAGEngine:
             date = metadata.get("date", "-") or "-"
             category = metadata.get("category", "-") or "-"
             url = metadata.get("item_url", "-") or "-"
+
+            normalized_title = self._normalize_text(title)
+            normalized_category = self._normalize_text(category)
+            if intent == "yonetmelik":
+                if "yonetmelik" not in normalized_category and "yonetmelik" not in normalized_title:
+                    continue
+                if self._is_generic_listing_title(title):
+                    continue
+
             key = (title, date, url)
 
             if key in seen:
