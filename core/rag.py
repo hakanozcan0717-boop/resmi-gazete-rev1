@@ -460,10 +460,12 @@ class RAGEngine:
         """
         LLM bağlamadan kaynaklı cevap taslağı üretir.
         """
-        raw_results = self.retrieve(question, top_k=max(top_k * 8, 40))
-        results = self._rerank_and_filter_results(question, raw_results, top_k=top_k)
+        is_listing = self._is_listing_request(question)
+        result_limit = max(top_k, 10) if is_listing else top_k
+        raw_results = self.retrieve(question, top_k=max(result_limit * 8, 40))
+        results = self._rerank_and_filter_results(question, raw_results, top_k=result_limit)
 
-        if self._is_listing_request(question):
+        if is_listing:
             return self._format_source_list(question, results)
 
         lines = []
@@ -503,10 +505,12 @@ class RAGEngine:
         """
         OpenAI, Gemini, Ollama vb. bir LLM'e verilecek prompt üretir.
         """
-        raw_results = self.retrieve(question, top_k=max(top_k * 8, 40))
-        results = self._rerank_and_filter_results(question, raw_results, top_k=top_k)
+        is_listing = self._is_listing_request(question)
+        result_limit = max(top_k, 10) if is_listing else top_k
+        raw_results = self.retrieve(question, top_k=max(result_limit * 8, 40))
+        results = self._rerank_and_filter_results(question, raw_results, top_k=result_limit)
 
-        if self._is_listing_request(question):
+        if is_listing:
             return self._format_source_list(question, results)
 
         context_parts = []
