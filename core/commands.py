@@ -10,6 +10,7 @@ Bu sürümde RAG ve LLM komutları da eklenmiştir:
 
 import datetime as dt
 import json
+import sqlite3
 import sys
 import traceback
 from pathlib import Path
@@ -18,9 +19,26 @@ from config.settings import APP_NAME
 from core.analyzer import GazetteAnalyzer
 from core.crawler import OfficialGazetteCrawler
 from core.database import GazetteDB
+from core.models import GazetteItem
 from core.rag import RAGEngine
 from core.utils import date_range, parse_date
 from web.app import create_app
+
+
+def _row_to_gazette_item(row) -> GazetteItem:
+    return GazetteItem(
+        date=row["date"] or "",
+        source_url=row["source_url"] or "",
+        item_url=row["item_url"] or "",
+        title=row["title"] or "",
+        category=row["category"] or "",
+        institution=row["institution"] or "",
+        content=row["content"] or "",
+        summary=row["summary"] or "",
+        content_hash=row["content_hash"] or "",
+        fetched_at=row["fetched_at"] or "",
+        file_path=row["file_path"] or "",
+    )
 
 
 def cmd_crawl(args) -> None:
@@ -113,6 +131,54 @@ def cmd_export(args) -> None:
     db = GazetteDB(args.db)
     db.export_csv(args.out)
     print(f"CSV dışa aktarıldı: {args.out}")
+
+
+def cmd_import_sqlite(args) -> None:
+    source_path = Path(args.sqlite_db)
+    if not source_path.exists():
+        raise SystemExit(f"SQLite veritabanı bulunamadı: {source_path}")
+
+    target_db = GazetteDB(args.db)
+    source = sqlite3.connect(str(source_path))
+    source.row_factory = sqlite3.Row
+
+    filters = []
+    params = []
+    if args.start:
+        filters.append("date >= ?")
+        params.append(args.start)
+    if args.end:
+        filters.append("date <= ?")
+        params.append(args.end)
+
+    sql = """
+    SELECT date, source_url, item_url, title, category, institution, content,
+           summary, content_hash, fetched_at, file_path
+    FROM gazette_items
+    """
+    if filters:
+        sql += " WHERE " + " AND ".join(filters)
+    sql += " ORDER BY date, id"
+    if args.limit:
+        sql += " LIMIT ?"
+        params.append(args.limit)
+
+    inserted = 0
+    skipped = 0
+    try:
+        for row in source.execute(sql, tuple(params)):
+            item = _row_to_gazette_item(row)
+            if target_db._fetchone("SELECT id FROM gazette_items WHERE item_url = ? LIMIT 1", (item.item_url,)):
+                skipped += 1
+                continue
+            if target_db.insert_item(item):
+                inserted += 1
+            else:
+                skipped += 1
+    finally:
+        source.close()
+
+    print(f"SQLite içe aktarma tamamlandı. Yeni kayıt: {inserted}, atlanan/var olan: {skipped}")
 
 
 def cmd_show(args) -> None:

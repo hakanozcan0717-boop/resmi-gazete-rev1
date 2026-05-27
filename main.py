@@ -23,6 +23,7 @@ from core.commands import (
     cmd_analyze,
     cmd_crawl,
     cmd_export,
+    cmd_import_sqlite,
     cmd_rag_ask,
     cmd_rag_index,
     cmd_rag_llm,
@@ -77,6 +78,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_export = sub.add_parser("export", help="CSV raporu üretir.")
     p_export.add_argument("--out", default="exports/resmi_gazete_rapor.csv")
     p_export.set_defaults(func=cmd_export)
+
+    p_import = sub.add_parser("import-sqlite", help="SQLite verilerini hedef veritabanına aktarır.")
+    p_import.add_argument("--sqlite-db", default=DEFAULT_DB, help="Kaynak SQLite veritabanı yolu")
+    p_import.add_argument("--start", help="Başlangıç tarihi YYYY-MM-DD")
+    p_import.add_argument("--end", help="Bitiş tarihi YYYY-MM-DD")
+    p_import.add_argument("--limit", type=int, default=None, help="En fazla kaç kayıt aktarılsın?")
+    p_import.set_defaults(func=cmd_import_sqlite)
 
     p_show = sub.add_parser("show", help="Tek bir kaydı detaylı gösterir.")
     p_show.add_argument("--id", type=int, required=True)
@@ -133,6 +141,16 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit("rag-index için --days ile --start/--end birlikte kullanılmamalıdır.")
         if bool(args.start) != bool(args.end):
             raise SystemExit("rag-index için --start ve --end birlikte verilmelidir.")
+        if args.start and args.end:
+            start = parse_date(args.start)
+            end = parse_date(args.end)
+            if start > end:
+                raise SystemExit("Başlangıç tarihi bitiş tarihinden büyük olamaz.")
+    elif args.command == "import-sqlite":
+        if args.limit is not None and args.limit <= 0:
+            raise SystemExit("--limit pozitif olmalıdır.")
+        if bool(args.start) != bool(args.end):
+            raise SystemExit("import-sqlite için --start ve --end birlikte verilmelidir.")
         if args.start and args.end:
             start = parse_date(args.start)
             end = parse_date(args.end)

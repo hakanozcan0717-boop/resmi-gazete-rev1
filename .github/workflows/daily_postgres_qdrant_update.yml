@@ -9,6 +9,22 @@ on:
         description: "Kaç günlük veri çekilip Qdrant'a indekslensin?"
         required: true
         default: "7"
+      import_sqlite:
+        description: "Repo içindeki resmi_gazete.db verilerini PostgreSQL'e aktar"
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      index_start:
+        description: "Qdrant indeks başlangıç tarihi YYYY-MM-DD; boşsa days kullanılır"
+        required: false
+        default: ""
+      index_end:
+        description: "Qdrant indeks bitiş tarihi YYYY-MM-DD; boşsa days kullanılır"
+        required: false
+        default: ""
 
 jobs:
   daily-update:
@@ -36,6 +52,13 @@ jobs:
         run: |
           python main.py crawl --days "$CRAWL_DAYS"
 
+      - name: SQLite verilerini PostgreSQL'e aktar
+        if: ${{ inputs.import_sqlite == 'true' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python main.py import-sqlite --sqlite-db resmi_gazete.db
+
       - name: Qdrant RAG indeksini guncelle
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -45,8 +68,14 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_EMBEDDING_MODEL: text-embedding-3-small
           INDEX_DAYS: ${{ inputs.days || '7' }}
+          INDEX_START: ${{ inputs.index_start }}
+          INDEX_END: ${{ inputs.index_end }}
         run: |
-          python main.py rag-index --days "$INDEX_DAYS"
+          if [ -n "$INDEX_START" ] && [ -n "$INDEX_END" ]; then
+            python main.py rag-index --start "$INDEX_START" --end "$INDEX_END"
+          else
+            python main.py rag-index --days "$INDEX_DAYS"
+          fi
 
       - name: Analiz raporu uret
         env:
