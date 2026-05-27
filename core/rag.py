@@ -338,41 +338,109 @@ class RAGEngine:
         normalized = self._normalize_text(title)
         return bool(re.fullmatch(r"\d{1,2}\s+\w+\s+\d{4}\s+\w+", normalized))
 
-    def _is_generic_listing_title(self, title: str) -> bool:
+    def _listing_profiles(self) -> Dict[str, Dict]:
+        return {
+            "yonetmelik": {
+                "terms": ["yonetmelik", "yonetmeligi", "yonetmeliginde", "yonetmeligine"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Yönetmeli(?:ği|k|ğinin|ğinde|ğine)[^.!?\n]{0,80})"
+                ],
+                "generic_starts": [
+                    "(1) bu yonetmelikte", "bu yonetmelikte", "ilgili yonetmelikte",
+                    "yonetmelikte hukum", "yonetmelikte adi gecen", "bu yonetmelikte hukum",
+                ],
+            },
+            "kanun": {
+                "terms": ["kanun", "kanunu", "kanun no", "kabul tarihi"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Kanunu[^.!?\n]{0,80})",
+                    r"(Kanun No\.\s*:\s*\d+[^.!?\n]{0,160})",
+                ],
+                "generic_starts": [
+                    "bu kanunda", "ilgili kanunda", "kanunda hukum", "kanunun",
+                ],
+            },
+            "teblig": {
+                "terms": ["teblig", "tebligi", "sira no", "genel tebligi"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Tebliği[^.!?\n]{0,80})",
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Tebliğ[^.!?\n]{0,80})",
+                ],
+                "generic_starts": [
+                    "bu tebligde", "ilgili tebligde", "tebligde hukum", "tebligin",
+                ],
+            },
+            "karar": {
+                "terms": ["karar", "karari", "karar sayisi", "karar no"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Kararı[^.!?\n]{0,80})",
+                    r"(Karar Sayısı\s*:\s*\d+[^.!?\n]{0,160})",
+                ],
+                "generic_starts": [
+                    "bu kararda", "ilgili kararda", "kararda hukum", "kararin",
+                ],
+            },
+            "ihale": {
+                "terms": ["ihale", "artirma", "eksiltme", "sartname"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}İhale[^.!?\n]{0,80})",
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Artırma[^.!?\n]{0,80})",
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Eksiltme[^.!?\n]{0,80})",
+                ],
+                "generic_starts": [
+                    "ihale edilecektir", "ihale olunur", "sartname",
+                ],
+            },
+            "atama": {
+                "terms": ["atama", "atanma", "atanmistir", "gorevden alma", "kadro"],
+                "patterns": [
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Atama[^.!?\n]{0,80})",
+                    r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Atanmıştır[^.!?\n]{0,80})",
+                ],
+                "generic_starts": [
+                    "atanmistir", "atama yapilmistir", "bu atama",
+                ],
+            },
+        }
+
+    def _listing_profile(self, intent: str) -> Dict:
+        return self._listing_profiles().get(intent, {"terms": [], "patterns": [], "generic_starts": []})
+
+    def _is_generic_listing_title(self, title: str, intent: str = "genel") -> bool:
         normalized = self._normalize_text(title).strip(" .,:;-")
-        generic_starts = [
-            "(1) bu yonetmelikte",
-            "bu yonetmelikte",
-            "ilgili yonetmelikte",
-            "yonetmelikte hukum",
-            "yonetmelikte adi gecen",
-            "bu yonetmelikte hukum",
-        ]
+        generic_starts = self._listing_profile(intent).get("generic_starts", [])
         return (
             not normalized
             or self._is_weak_title(title)
             or any(normalized.startswith(prefix) for prefix in generic_starts)
-            or normalized in {"yonetmelik", "yonetmeligi"}
         )
 
-    def _extract_better_title(self, title: str, text: str) -> str:
+    def _clean_extracted_title(self, title: str) -> str:
+        title = re.split(r"\s+MADDE\s+\d+", title, maxsplit=1)[0]
+        title = re.split(r"\s+Yürürlük\s*$", title, maxsplit=1)[0]
+        return title.strip(" -–\t,;:")
+
+    def _extract_better_title(self, title: str, text: str, intent: str = "genel") -> str:
         if title and not self._is_weak_title(title):
             return title
 
+        profile = self._listing_profile(intent)
+        terms = profile.get("terms", [])
+
         for raw_line in (text or "").splitlines():
-            line = raw_line.strip(" -–\t")
+            line = self._clean_extracted_title(raw_line.strip(" -–\t"))
             normalized = self._normalize_text(line)
             if len(line) < 20 or len(line) > 250:
                 continue
-            if "yonetmelik" in normalized and not self._is_generic_listing_title(line):
+            if any(term in normalized for term in terms) and not self._is_generic_listing_title(line, intent):
                 return line
 
         compact_text = re.sub(r"\s+", " ", text or "")
-        for match in re.finditer(r"([A-ZÇĞİÖŞÜ0-9][^.!?\n]{10,220}Yönetmeli(?:ği|k|ğinin|ğinde)[^.!?\n]{0,80})", compact_text):
-            candidate = match.group(1).strip(" -–\t,;:")
-            candidate = re.split(r"\s+MADDE\s+\d+", candidate, maxsplit=1)[0].strip(" -–\t,;:")
-            if 20 <= len(candidate) <= 250 and not self._is_generic_listing_title(candidate):
-                return candidate
+        for pattern in profile.get("patterns", []):
+            for match in re.finditer(pattern, compact_text):
+                candidate = self._clean_extracted_title(match.group(1))
+                if 20 <= len(candidate) <= 250 and not self._is_generic_listing_title(candidate, intent):
+                    return candidate
 
         return title or "-"
 
@@ -389,16 +457,7 @@ class RAGEngine:
             ])
         )
 
-        required_terms = {
-            "yonetmelik": ["yonetmelik", "yonetmeligi", "yonetmeliginde"],
-            "kanun": ["kanun", "kanunu"],
-            "teblig": ["teblig", "tebligi"],
-            "ihale": ["ihale", "artirma", "eksiltme"],
-            "atama": ["atama", "atanma", "atanmistir", "gorevden alma"],
-            "karar": ["karar", "karari"],
-        }
-
-        terms = required_terms.get(intent)
+        terms = self._listing_profile(intent).get("terms", [])
         if not terms:
             return True
 
@@ -419,18 +478,18 @@ class RAGEngine:
         item_no = 1
         for item in filtered_results:
             metadata = item.get("metadata", {})
-            title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""))
+            title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""), intent)
             date = metadata.get("date", "-") or "-"
             category = metadata.get("category", "-") or "-"
             url = metadata.get("item_url", "-") or "-"
 
             normalized_title = self._normalize_text(title)
             normalized_category = self._normalize_text(category)
-            if intent == "yonetmelik":
-                if "yonetmelik" not in normalized_category and "yonetmelik" not in normalized_title:
-                    continue
-                if self._is_generic_listing_title(title):
-                    continue
+            terms = self._listing_profile(intent).get("terms", [])
+            if terms and not any(term in normalized_category or term in normalized_title for term in terms):
+                continue
+            if terms and self._is_generic_listing_title(title, intent):
+                continue
 
             key = (title, date, url)
 
