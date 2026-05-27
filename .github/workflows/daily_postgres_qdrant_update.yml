@@ -46,9 +46,10 @@ jobs:
           pip install -r requirements.txt
 
       - name: Resmi Gazete verisini PostgreSQL'e cek
+        timeout-minutes: 45
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CRAWL_DAYS: ${{ inputs.days || '7' }}
+          CRAWL_DAYS: ${{ inputs.days || '2' }}
         run: |
           python main.py crawl --days "$CRAWL_DAYS"
 
@@ -60,6 +61,7 @@ jobs:
           python main.py import-sqlite --sqlite-db resmi_gazete.db
 
       - name: Qdrant RAG indeksini guncelle
+        timeout-minutes: 45
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
@@ -67,7 +69,7 @@ jobs:
           QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_EMBEDDING_MODEL: text-embedding-3-small
-          INDEX_DAYS: ${{ inputs.days || '7' }}
+          INDEX_DAYS: ${{ inputs.days || '2' }}
           INDEX_START: ${{ inputs.index_start }}
           INDEX_END: ${{ inputs.index_end }}
         run: |
