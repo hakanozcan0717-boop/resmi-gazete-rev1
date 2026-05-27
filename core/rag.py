@@ -321,6 +321,46 @@ class RAGEngine:
         """
         return self.vector_store.search(question, top_k=top_k)
 
+    def _is_listing_request(self, question: str) -> bool:
+        q = self._normalize_text(question)
+        listing_words = [
+            "getir", "listele", "goster", "sirala", "bul",
+            "hangi", "nelerdir", "kaynaklari", "kaynaklar"
+        ]
+        return any(word in q for word in listing_words)
+
+    def _format_source_list(self, question: str, results: List[Dict]) -> str:
+        lines = [f"Soru: {question}", ""]
+
+        if not results:
+            return "\n".join(lines + ["Uygun kaynak bulunamadı."])
+
+        lines.append("Bulunan kaynaklar:")
+        lines.append("")
+
+        seen = set()
+        item_no = 1
+        for item in results:
+            metadata = item.get("metadata", {})
+            title = metadata.get("title", "-") or "-"
+            date = metadata.get("date", "-") or "-"
+            category = metadata.get("category", "-") or "-"
+            url = metadata.get("item_url", "-") or "-"
+            key = (title, date, url)
+
+            if key in seen:
+                continue
+            seen.add(key)
+
+            lines.append(f"{item_no}. {title}")
+            lines.append(f"   Tarih: {date}")
+            lines.append(f"   Kategori: {category}")
+            lines.append(f"   Kaynak: {url}")
+            lines.append("")
+            item_no += 1
+
+        return "\n".join(lines).strip()
+
     def _rerank_and_filter_results(self, question: str, results: List[Dict], top_k: int = 5) -> List[Dict]:
         """
         Vektör sonuçlarını genel hybrid mantıkla filtreler ve tekrar sıralar.
@@ -423,6 +463,9 @@ class RAGEngine:
         raw_results = self.retrieve(question, top_k=max(top_k * 8, 40))
         results = self._rerank_and_filter_results(question, raw_results, top_k=top_k)
 
+        if self._is_listing_request(question):
+            return self._format_source_list(question, results)
+
         lines = []
         lines.append(f"Soru: {question}")
         lines.append("")
@@ -463,6 +506,9 @@ class RAGEngine:
         raw_results = self.retrieve(question, top_k=max(top_k * 8, 40))
         results = self._rerank_and_filter_results(question, raw_results, top_k=top_k)
 
+        if self._is_listing_request(question):
+            return self._format_source_list(question, results)
+
         context_parts = []
 
         for i, item in enumerate(results, start=1):
@@ -491,8 +537,10 @@ Görevin:
 - Sadece aşağıdaki kaynak metinlere dayanarak cevap ver.
 - Kaynaklarda olmayan bilgiyi uydurma.
 - Cevabın sonunda hangi kaynaklara dayandığını belirt.
-- Eğer cevap kaynaklarda yoksa "Bu bilgi verilen kaynaklarda bulunamadı." de.
+- Kaynaklar içinde cevaplanabilir bilgi varsa asla "Bu bilgi verilen kaynaklarda bulunamadı." deme.
+- Sadece hiç ilgili kaynak yoksa veya kaynaklar soruya cevap vermiyorsa "Bu bilgi verilen kaynaklarda bulunamadı." de.
 - Kullanıcının sorduğu konu dışındaki kaynakları cevaba karıştırma.
+- Kullanıcı "getir", "listele", "göster", "hangi" gibi listeleme isterse yorum yapmadan başlık, tarih, kategori ve URL listesi ver.
 
 SORU:
 {question}
