@@ -275,11 +275,18 @@ class RAGEngine:
 
         return profiles.get(intent, {"positive": [], "negative": [], "categories": []})
 
-    def build_index(self, limit: Optional[int] = None, chunk_size: int = 1200, overlap: int = 200) -> int:
+    def build_index(
+        self,
+        limit: Optional[int] = None,
+        chunk_size: int = 1200,
+        overlap: int = 200,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ) -> int:
         """
         SQLite veritabanındaki belgeleri RAG indeksine ekler.
         """
-        rows = self.db.all_texts(limit=limit)
+        rows = self.db.all_texts(limit=limit, start_date=start_date, end_date=end_date)
         all_chunks = []
 
         for row in rows:

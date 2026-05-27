@@ -221,15 +221,31 @@ class GazetteDB:
     def get_item(self, item_id: int):
         return self._fetchone("SELECT * FROM gazette_items WHERE id = ?", (item_id,))
 
-    def all_texts(self, limit: Optional[int] = None):
+    def all_texts(self, limit: Optional[int] = None, start_date: Optional[str] = None, end_date: Optional[str] = None):
         sql = """
         SELECT id, date, title, category, institution, content, summary, item_url
         FROM gazette_items
-        ORDER BY date DESC
         """
+        params = []
+        filters = []
+
+        if start_date:
+            filters.append("date >= ?")
+            params.append(start_date)
+        if end_date:
+            filters.append("date <= ?")
+            params.append(end_date)
+
+        if filters:
+            sql += " WHERE " + " AND ".join(filters)
+
+        sql += " ORDER BY date DESC"
+
         if limit:
-            sql += f" LIMIT {int(limit)}"
-        return self._fetchall(sql)
+            sql += " LIMIT ?"
+            params.append(int(limit))
+
+        return self._fetchall(sql, tuple(params))
 
     def search(self, query: str, limit: int = 30) -> List[SearchResult]:
         query = clean_whitespace(query)

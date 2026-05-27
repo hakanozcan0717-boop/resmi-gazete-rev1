@@ -10,6 +10,14 @@ import argparse
 import textwrap
 from typing import Optional, Sequence
 
+try:
+    from dotenv import load_dotenv
+except Exception:
+    load_dotenv = None
+
+if load_dotenv:
+    load_dotenv()
+
 from config.settings import DEFAULT_DATA_DIR, DEFAULT_DB, DEFAULT_HOST, DEFAULT_PORT
 from core.commands import (
     cmd_analyze,
@@ -52,7 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_crawl.add_argument("--end", help="Bitiş tarihi YYYY-MM-DD")
     p_crawl.add_argument("--days", type=int, help="Bugünden geriye kaç gün indirilsin?")
     p_crawl.add_argument("--data-dir", default=DEFAULT_DATA_DIR, help="PDF/ham veri klasörü")
-    p_crawl.add_argument("--timeout", type=int, default=30)
+    p_crawl.add_argument("--timeout", type=int, default=90)
     p_crawl.add_argument("--sleep", type=float, default=0.6, help="İstekler arası bekleme saniyesi")
     p_crawl.add_argument("--debug", action="store_true")
     p_crawl.set_defaults(func=cmd_crawl)
@@ -84,6 +92,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_rag_index = sub.add_parser("rag-index", help="SQLite belgelerini RAG vektör veritabanına işler.")
     p_rag_index.add_argument("--vector-db", default="vector_db", help="Vektör veritabanı klasörü")
     p_rag_index.add_argument("--limit", type=int, default=None, help="Kaç belge işlensin? Boşsa tüm belgeler")
+    p_rag_index.add_argument("--start", help="Başlangıç tarihi YYYY-MM-DD")
+    p_rag_index.add_argument("--end", help="Bitiş tarihi YYYY-MM-DD")
+    p_rag_index.add_argument("--days", type=int, help="Bugünden geriye kaç gün indekslensin?")
     p_rag_index.add_argument("--chunk-size", type=int, default=1000, help="Her metin parçasının yaklaşık karakter sayısı")
     p_rag_index.add_argument("--overlap", type=int, default=150, help="Parçalar arası ortak karakter sayısı")
     p_rag_index.set_defaults(func=cmd_rag_index)
@@ -110,6 +121,18 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit("crawl için ya --days ya da --start ve --end birlikte verilmelidir.")
         if args.days is not None and args.days <= 0:
             raise SystemExit("--days pozitif olmalıdır.")
+        if args.start and args.end:
+            start = parse_date(args.start)
+            end = parse_date(args.end)
+            if start > end:
+                raise SystemExit("Başlangıç tarihi bitiş tarihinden büyük olamaz.")
+    elif args.command == "rag-index":
+        if args.days is not None and args.days <= 0:
+            raise SystemExit("--days pozitif olmalıdır.")
+        if args.days and (args.start or args.end):
+            raise SystemExit("rag-index için --days ile --start/--end birlikte kullanılmamalıdır.")
+        if bool(args.start) != bool(args.end):
+            raise SystemExit("rag-index için --start ve --end birlikte verilmelidir.")
         if args.start and args.end:
             start = parse_date(args.start)
             end = parse_date(args.end)

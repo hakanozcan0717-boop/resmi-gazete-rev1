@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "30 5 * * *"
   workflow_dispatch:
+    inputs:
+      days:
+        description: "Kaç günlük veri çekilip Qdrant'a indekslensin?"
+        required: true
+        default: "7"
 
 jobs:
   daily-update:
@@ -24,11 +29,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Son 2 gunun Resmi Gazete verisini PostgreSQL'e cek
+      - name: Resmi Gazete verisini PostgreSQL'e cek
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWL_DAYS: ${{ inputs.days || '7' }}
         run: |
-          python main.py crawl --days 2
+          python main.py crawl --days "$CRAWL_DAYS"
 
       - name: Qdrant RAG indeksini guncelle
         env:
@@ -38,8 +44,9 @@ jobs:
           QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           OPENAI_EMBEDDING_MODEL: text-embedding-3-small
+          INDEX_DAYS: ${{ inputs.days || '7' }}
         run: |
-          python main.py rag-index
+          python main.py rag-index --days "$INDEX_DAYS"
 
       - name: Analiz raporu uret
         env:

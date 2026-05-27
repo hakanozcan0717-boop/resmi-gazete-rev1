@@ -157,7 +157,22 @@ def cmd_serve(args) -> None:
 
 def cmd_rag_index(args) -> None:
     rag = RAGEngine(db_path=args.db, vector_db_path=args.vector_db)
-    count = rag.build_index(limit=args.limit, chunk_size=args.chunk_size, overlap=args.overlap)
+    start_date = args.start
+    end_date = args.end
+
+    if args.days:
+        end = dt.date.today()
+        start = end - dt.timedelta(days=args.days - 1)
+        start_date = start.isoformat()
+        end_date = end.isoformat()
+
+    count = rag.build_index(
+        limit=args.limit,
+        chunk_size=args.chunk_size,
+        overlap=args.overlap,
+        start_date=start_date,
+        end_date=end_date,
+    )
     print(f"RAG indeksleme tamamlandı. Eklenen/güncellenen parça sayısı: {count}")
 
 
