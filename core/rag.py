@@ -329,10 +329,65 @@ class RAGEngine:
         ]
         return any(word in q for word in listing_words)
 
+    def _is_weak_title(self, title: str) -> bool:
+        normalized = self._normalize_text(title)
+        return bool(re.fullmatch(r"\d{1,2}\s+\w+\s+\d{4}\s+\w+", normalized))
+
+    def _extract_better_title(self, title: str, text: str) -> str:
+        if title and not self._is_weak_title(title):
+            return title
+
+        for raw_line in (text or "").splitlines():
+            line = raw_line.strip(" -–\t")
+            normalized = self._normalize_text(line)
+            if len(line) < 20 or len(line) > 250:
+                continue
+            if "yonetmelik" in normalized:
+                return line
+
+        compact_text = re.sub(r"\s+", " ", text or "")
+        for match in re.finditer(r"([^.!?\n]{10,220}Yönetmeli(?:ği|k|ğinin|ğinde)[^.!?\n]{0,80})", compact_text):
+            candidate = match.group(1).strip(" -–\t,;:")
+            candidate = re.split(r"\s+MADDE\s+\d+", candidate, maxsplit=1)[0].strip(" -–\t,;:")
+            if 20 <= len(candidate) <= 250:
+                return candidate
+
+        return title or "-"
+
+    def _matches_intent(self, intent: str, item: Dict) -> bool:
+        if intent == "genel":
+            return True
+
+        metadata = item.get("metadata", {})
+        haystack = self._normalize_text(
+            " ".join([
+                str(metadata.get("title", "")),
+                str(metadata.get("category", "")),
+                str(item.get("text", "")),
+            ])
+        )
+
+        required_terms = {
+            "yonetmelik": ["yonetmelik", "yonetmeligi", "yonetmeliginde"],
+            "kanun": ["kanun", "kanunu"],
+            "teblig": ["teblig", "tebligi"],
+            "ihale": ["ihale", "artirma", "eksiltme"],
+            "atama": ["atama", "atanma", "atanmistir", "gorevden alma"],
+            "karar": ["karar", "karari"],
+        }
+
+        terms = required_terms.get(intent)
+        if not terms:
+            return True
+
+        return any(term in haystack for term in terms)
+
     def _format_source_list(self, question: str, results: List[Dict]) -> str:
         lines = [f"Soru: {question}", ""]
+        intent = self._detect_intent(question)
+        filtered_results = [item for item in results if self._matches_intent(intent, item)]
 
-        if not results:
+        if not filtered_results:
             return "\n".join(lines + ["Uygun kaynak bulunamadı."])
 
         lines.append("Bulunan kaynaklar:")
@@ -340,9 +395,9 @@ class RAGEngine:
 
         seen = set()
         item_no = 1
-        for item in results:
+        for item in filtered_results:
             metadata = item.get("metadata", {})
-            title = metadata.get("title", "-") or "-"
+            title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""))
             date = metadata.get("date", "-") or "-"
             category = metadata.get("category", "-") or "-"
             url = metadata.get("item_url", "-") or "-"
