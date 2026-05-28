@@ -332,7 +332,33 @@ class RAGEngine:
             "getir", "listele", "goster", "sirala", "bul",
             "hangi", "nelerdir", "kaynaklari", "kaynaklar"
         ]
-        return any(word in q for word in listing_words)
+        if any(word in q for word in listing_words):
+            return True
+
+        bare_listing_terms = [
+            "kanunlari", "yonetmelikleri", "tebligleri", "kararlari",
+            "ihaleleri", "atama kararlari", "atamalar", "atamalari"
+        ]
+        return any(term in q for term in bare_listing_terms)
+
+    def _meaningful_question_terms(self, question: str, intent: str = "genel") -> List[str]:
+        q = self._normalize_text(question)
+        terms = re.findall(r"[a-z0-9]+", q)
+        profile_terms = set(self._listing_profile(intent).get("terms", []))
+        stop_terms = {
+            "getir", "listele", "goster", "sirala", "bul", "hangi",
+            "nelerdir", "kaynaklari", "kaynaklar", "ilgili", "hakkinda",
+            "resmi", "gazete", "kararlari", "kararlar", "kanunlari",
+            "yonetmelikleri", "tebligleri", "ihaleleri", "atamalari",
+            "atamalar",
+        }
+        output = []
+        for term in terms:
+            if len(term) <= 2 or term in stop_terms or term in profile_terms:
+                continue
+            if term not in output:
+                output.append(term)
+        return output
 
     def _is_weak_title(self, title: str) -> bool:
         normalized = self._normalize_text(title)
@@ -470,46 +496,117 @@ class RAGEngine:
 
         return any(term in haystack for term in terms)
 
-    def _format_source_list(self, question: str, results: List[Dict]) -> str:
-        lines = [f"Soru: {question}", ""]
+    def _source_text_for_filter(self, item: Dict) -> str:
+        metadata = item.get("metadata", {})
+        return self._normalize_text(
+            " ".join([
+                str(metadata.get("title", "")),
+                str(metadata.get("category", "")),
+                str(item.get("text", "")),
+            ])
+        )
+
+    def _question_term_score(self, question_terms: List[str], item: Dict) -> int:
+        if not question_terms:
+            return 0
+
+        haystack = self._source_text_for_filter(item)
+        return sum(1 for term in question_terms if term in haystack)
+
+    def _passes_question_terms(self, question_terms: List[str], item: Dict) -> bool:
+        if not question_terms:
+            return True
+
+        # For focused queries such as "MEB atama kararları", at least one
+        # non-document-type term must appear in the candidate source.
+        return self._question_term_score(question_terms, item) > 0
+
+    def _clean_source_item(self, item: Dict, intent: str) -> Optional[Dict]:
+        metadata = item.get("metadata", {})
+        title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""), intent)
+        date = metadata.get("date", "-") or "-"
+        category = metadata.get("category", "-") or "-"
+        url = metadata.get("item_url", "-") or "-"
+
+        normalized_title = self._normalize_text(title)
+        normalized_category = self._normalize_text(category)
+        terms = self._listing_profile(intent).get("terms", [])
+        if terms and not any(term in normalized_category or term in normalized_title for term in terms):
+            return None
+        if terms and self._is_generic_listing_title(title, intent):
+            return None
+
+        cleaned = dict(item)
+        cleaned["metadata"] = {
+            **metadata,
+            "title": title,
+            "date": date,
+            "category": category,
+            "item_url": url,
+        }
+        return cleaned
+
+    def prepare_sources(self, question: str, top_k: int = 5) -> List[Dict]:
         intent = self._detect_intent(question)
-        filtered_results = [item for item in results if self._matches_intent(intent, item)]
+        question_terms = self._meaningful_question_terms(question, intent)
 
-        if not filtered_results:
-            return "\n".join(lines + ["Uygun kaynak bulunamadı."])
+        raw_limit = max(top_k * 8, 40)
+        raw_results = self.retrieve(question, top_k=raw_limit)
+        reranked = self._rerank_and_filter_results(question, raw_results, top_k=raw_limit)
 
-        lines.append("Bulunan kaynaklar:")
-        lines.append("")
+        filtered_results = [
+            item for item in reranked
+            if self._matches_intent(intent, item) and self._passes_question_terms(question_terms, item)
+        ]
+        filtered_results.sort(
+            key=lambda item: (
+                -self._question_term_score(question_terms, item),
+                item.get("distance", 999),
+            )
+        )
 
         seen = set()
-        item_no = 1
+        prepared = []
         for item in filtered_results:
-            metadata = item.get("metadata", {})
-            title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""), intent)
-            date = metadata.get("date", "-") or "-"
-            category = metadata.get("category", "-") or "-"
-            url = metadata.get("item_url", "-") or "-"
-
-            normalized_title = self._normalize_text(title)
-            normalized_category = self._normalize_text(category)
-            terms = self._listing_profile(intent).get("terms", [])
-            if terms and not any(term in normalized_category or term in normalized_title for term in terms):
+            cleaned = self._clean_source_item(item, intent)
+            if not cleaned:
                 continue
-            if terms and self._is_generic_listing_title(title, intent):
-                continue
-
+            metadata = cleaned["metadata"]
+            title = metadata.get("title", "")
+            date = metadata.get("date", "")
+            url = metadata.get("item_url", "")
             key = self._normalize_text(title) or url or date
 
             if key in seen:
                 continue
             seen.add(key)
+            prepared.append(cleaned)
 
+            if len(prepared) >= top_k:
+                break
+
+        return prepared
+
+    def _format_source_list(self, question: str, results: List[Dict]) -> str:
+        lines = [f"Soru: {question}", ""]
+
+        if not results:
+            return "\n".join(lines + ["Uygun kaynak bulunamadı."])
+
+        lines.append("Bulunan kaynaklar:")
+        lines.append("")
+
+        for item_no, item in enumerate(results, start=1):
+            metadata = item.get("metadata", {})
+            title = metadata.get("title", "-") or "-"
+            date = metadata.get("date", "-") or "-"
+            category = metadata.get("category", "-") or "-"
+            url = metadata.get("item_url", "-") or "-"
             lines.append(f"{item_no}. {title}")
             lines.append(f"   Tarih: {date}")
             lines.append(f"   Kategori: {category}")
             lines.append(f"   Kaynak: {url}")
             lines.append("")
-            item_no += 1
 
         return "\n".join(lines).strip()
 
@@ -614,8 +711,7 @@ class RAGEngine:
         """
         is_listing = self._is_listing_request(question)
         result_limit = max(top_k, 10) if is_listing else top_k
-        raw_results = self.retrieve(question, top_k=max(result_limit * 8, 40))
-        results = self._rerank_and_filter_results(question, raw_results, top_k=result_limit)
+        results = self.prepare_sources(question, top_k=result_limit)
 
         if is_listing:
             return self._format_source_list(question, results)
@@ -653,17 +749,11 @@ class RAGEngine:
 
         return "\n".join(lines)
 
-    def build_prompt_for_llm(self, question: str, top_k: int = 5) -> str:
+    def build_prompt_for_llm(self, question: str, top_k: int = 5, sources: Optional[List[Dict]] = None) -> str:
         """
         OpenAI, Gemini, Ollama vb. bir LLM'e verilecek prompt üretir.
         """
-        is_listing = self._is_listing_request(question)
-        result_limit = max(top_k, 10) if is_listing else top_k
-        raw_results = self.retrieve(question, top_k=max(result_limit * 8, 40))
-        results = self._rerank_and_filter_results(question, raw_results, top_k=result_limit)
-
-        if is_listing:
-            return self._format_source_list(question, results)
+        results = sources if sources is not None else self.prepare_sources(question, top_k=top_k)
 
         context_parts = []
 
@@ -685,6 +775,8 @@ Metin:
             )
 
         context = "\n".join(context_parts)
+        if not context_parts:
+            context = "İlgili temiz kaynak bulunamadı."
 
         prompt = f"""
 Sen bir Resmî Gazete analiz asistanısın.
@@ -713,9 +805,16 @@ CEVAP:
         """
         RAG + LLM cevabı üretir.
         """
+        if self._is_listing_request(question):
+            return self.answer_without_llm(question=question, top_k=max(top_k, 10))
+
+        sources = self.prepare_sources(question, top_k=top_k)
+        if not sources:
+            return "Uygun kaynak bulunamadı."
+
         if LLMClient is None:
             raise RuntimeError("LLMClient yüklenemedi. core/llm_client.py dosyasını ve openai paketini kontrol et.")
 
-        prompt = self.build_prompt_for_llm(question=question, top_k=top_k)
+        prompt = self.build_prompt_for_llm(question=question, top_k=top_k, sources=sources)
         llm = LLMClient(model=model)
         return llm.generate_answer(prompt)
