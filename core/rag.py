@@ -527,6 +527,7 @@ class RAGEngine:
         date = metadata.get("date", "-") or "-"
         category = metadata.get("category", "-") or "-"
         url = metadata.get("item_url", "-") or "-"
+        snippet = self._source_snippet(item.get("text", ""))
 
         normalized_title = self._normalize_text(title)
         normalized_category = self._normalize_text(category)
@@ -543,8 +544,17 @@ class RAGEngine:
             "date": date,
             "category": category,
             "item_url": url,
+            "snippet": snippet,
         }
         return cleaned
+
+    def _source_snippet(self, text: str, limit: int = 420) -> str:
+        text = re.sub(r"\s+", " ", text or "").strip()
+        text = re.sub(r"^(MADDE\s+\d+[-–.]?\s*)", "", text, flags=re.I).strip()
+        if len(text) <= limit:
+            return text
+        cut = text[:limit].rsplit(" ", 1)[0]
+        return cut.rstrip(".,;:") + "..."
 
     def prepare_sources(self, question: str, top_k: int = 5) -> List[Dict]:
         intent = self._detect_intent(question)

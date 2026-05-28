@@ -28,8 +28,42 @@
 
 {% if answer %}
 <div class="card">
-    <h3>Cevap / Bulunan Kaynaklar</h3>
+    <h3>Cevap</h3>
     <pre>{{ answer }}</pre>
+</div>
+{% endif %}
+
+{% if sources %}
+<div class="card">
+    <h3>Bulunan Kaynaklar</h3>
+    <table>
+        <tr>
+            <th>#</th>
+            <th>Kaynak</th>
+            <th>Tarih</th>
+            <th>Kategori</th>
+        </tr>
+        {% for item in sources %}
+        {% set meta = item["metadata"] %}
+        <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+                <strong>{{ meta["title"] }}</strong>
+                {% if meta["snippet"] %}
+                    <br><span class="muted">{{ meta["snippet"] }}</span>
+                {% endif %}
+                <br><a href="{{ meta['item_url'] }}" target="_blank" rel="noopener">Kaynağı aç</a>
+            </td>
+            <td>{{ meta["date"] }}</td>
+            <td><span class="tag">{{ meta["category"] }}</span></td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% elif question and mode == "sources" and not error %}
+<div class="card">
+    <h3>Bulunan Kaynaklar</h3>
+    <p>Uygun kaynak bulunamadı.</p>
 </div>
 {% endif %}
 {% endblock %}

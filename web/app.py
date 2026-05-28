@@ -63,6 +63,7 @@ def create_app(db_path: str = DEFAULT_DB):
     def rag_page():
         question = ""
         answer = ""
+        sources = []
         mode = "sources"
         error = ""
 
@@ -76,7 +77,7 @@ def create_app(db_path: str = DEFAULT_DB):
                     if mode == "llm":
                         answer = rag.answer_with_llm(question=question, top_k=5)
                     else:
-                        answer = rag.answer_without_llm(question=question, top_k=10)
+                        sources = rag.prepare_sources(question=question, top_k=10)
                 except Exception as exc:
                     error = str(exc)
 
@@ -85,6 +86,7 @@ def create_app(db_path: str = DEFAULT_DB):
             app_name=APP_NAME,
             question=question,
             answer=answer,
+            sources=sources,
             mode=mode,
             error=error,
         )
