@@ -9,6 +9,14 @@ on:
         description: "Kaç günlük veri çekilip Qdrant'a indekslensin?"
         required: true
         default: "7"
+      crawl_start:
+        description: "Veri çekme başlangıç tarihi YYYY-MM-DD; boşsa days kullanılır"
+        required: false
+        default: ""
+      crawl_end:
+        description: "Veri çekme bitiş tarihi YYYY-MM-DD; boşsa days kullanılır"
+        required: false
+        default: ""
       import_sqlite:
         description: "Repo içindeki resmi_gazete.db verilerini PostgreSQL'e aktar"
         required: true
@@ -46,12 +54,18 @@ jobs:
           pip install -r requirements.txt
 
       - name: Resmi Gazete verisini PostgreSQL'e cek
-        timeout-minutes: 45
+        timeout-minutes: 180
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CRAWL_DAYS: ${{ inputs.days || '2' }}
+          CRAWL_START: ${{ inputs.crawl_start }}
+          CRAWL_END: ${{ inputs.crawl_end }}
         run: |
-          python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90
+          if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
+            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90
+          else
+            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90
+          fi
 
       - name: SQLite verilerini PostgreSQL'e aktar
         if: ${{ inputs.import_sqlite == 'true' }}
@@ -61,7 +75,7 @@ jobs:
           python main.py import-sqlite --sqlite-db resmi_gazete.db
 
       - name: Qdrant RAG indeksini guncelle
-        timeout-minutes: 45
+        timeout-minutes: 180
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           QDRANT_URL: ${{ secrets.QDRANT_URL }}
@@ -72,7 +86,15 @@ jobs:
           INDEX_DAYS: ${{ inputs.days || '2' }}
           INDEX_START: ${{ inputs.index_start }}
           INDEX_END: ${{ inputs.index_end }}
+          CRAWL_START: ${{ inputs.crawl_start }}
+          CRAWL_END: ${{ inputs.crawl_end }}
         run: |
+          if [ -z "$INDEX_START" ] && [ -n "$CRAWL_START" ]; then
+            INDEX_START="$CRAWL_START"
+          fi
+          if [ -z "$INDEX_END" ] && [ -n "$CRAWL_END" ]; then
+            INDEX_END="$CRAWL_END"
+          fi
           if [ -n "$INDEX_START" ] && [ -n "$INDEX_END" ]; then
             python main.py rag-index --start "$INDEX_START" --end "$INDEX_END"
           else
