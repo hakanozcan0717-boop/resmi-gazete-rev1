@@ -336,7 +336,11 @@ class RAGEngine:
 
     def _is_weak_title(self, title: str) -> bool:
         normalized = self._normalize_text(title)
-        return bool(re.fullmatch(r"\d{1,2}\s+\w+\s+\d{4}\s+\w+", normalized))
+        return (
+            bool(re.fullmatch(r"\d{1,2}\s+\w+\s+\d{4}\s+\w+", normalized))
+            or bool(re.fullmatch(r"\d{1,2}\.\d{1,2}\.\d{4}\s+resmi gazete pdf", normalized))
+            or normalized.endswith("resmi gazete pdf")
+        )
 
     def _listing_profiles(self) -> Dict[str, Dict]:
         return {
@@ -357,7 +361,8 @@ class RAGEngine:
                     r"(Kanun No\.\s*:\s*\d+[^.!?\n]{0,160})",
                 ],
                 "generic_starts": [
-                    "bu kanunda", "ilgili kanunda", "kanunda hukum", "kanunun",
+                    "bu kanunda", "bu kanunun", "ilgili kanunda", "kanunda hukum",
+                    "kanunun", "kanun uyarinca", "sayili kanunun", "bu kanunun ek",
                 ],
             },
             "teblig": {
@@ -413,6 +418,8 @@ class RAGEngine:
             not normalized
             or self._is_weak_title(title)
             or any(normalized.startswith(prefix) for prefix in generic_starts)
+            or bool(re.match(r"^\d+\s+sayili\s+kanunun\b", normalized))
+            or bool(re.match(r"^bu\s+kanunun\b", normalized))
         )
 
     def _clean_extracted_title(self, title: str) -> str:
@@ -491,7 +498,7 @@ class RAGEngine:
             if terms and self._is_generic_listing_title(title, intent):
                 continue
 
-            key = (title, date, url)
+            key = self._normalize_text(title) or url or date
 
             if key in seen:
                 continue
