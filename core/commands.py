@@ -43,7 +43,13 @@ def _row_to_gazette_item(row) -> GazetteItem:
 
 def cmd_crawl(args) -> None:
     db = GazetteDB(args.db)
-    crawler = OfficialGazetteCrawler(args.data_dir, timeout=args.timeout, sleep=args.sleep)
+    crawler = OfficialGazetteCrawler(
+        args.data_dir,
+        timeout=args.timeout,
+        sleep=args.sleep,
+        retries=args.retries,
+        max_request_seconds=args.max_request_seconds,
+    )
 
     if args.days:
         end = dt.date.today()

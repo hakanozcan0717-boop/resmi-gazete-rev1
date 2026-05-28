@@ -21,9 +21,21 @@ except Exception:
     PdfReader = None
 
 class OfficialGazetteCrawler:
-    def __init__(self, data_dir: str = DEFAULT_DATA_DIR, timeout: int = 30, sleep: float = 0.5):
+    def __init__(
+        self,
+        data_dir: str = DEFAULT_DATA_DIR,
+        timeout: int = 30,
+        sleep: float = 0.5,
+        retries: int = 2,
+        max_request_seconds: int = 120,
+    ):
         self.data_dir = ensure_dir(data_dir)
-        self.client = HttpClient(timeout=timeout, sleep=sleep)
+        self.client = HttpClient(
+            timeout=timeout,
+            sleep=sleep,
+            retries=retries,
+            max_request_seconds=max_request_seconds,
+        )
 
     @staticmethod
     def daily_html_url(day: dt.date) -> str:

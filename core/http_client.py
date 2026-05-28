@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import sys
 import time
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 from config.settings import USER_AGENT
 try:
     import requests
@@ -9,10 +9,12 @@ except Exception:
     requests = None
 
 class HttpClient:
-    def __init__(self, timeout: int = 60, sleep: float = 1.5):
+    def __init__(self, timeout: int = 60, sleep: float = 1.5, retries: int = 2, max_request_seconds: Optional[int] = None):
         self.timeout = timeout
         self.connect_timeout = min(max(timeout, 5), 15)
-        self.pdf_read_timeout = max(timeout, 180)
+        self.pdf_read_timeout = min(max(timeout, 90), 120)
+        self.retries = max(1, retries)
+        self.max_request_seconds = max_request_seconds or max(timeout * 2, 120)
         self.sleep = sleep
         self.last_request_at = 0.0
         self.session = None
@@ -22,11 +24,18 @@ class HttpClient:
 
     def get(self, url: str) -> Tuple[int, bytes, str]:
         self._wait_before_request()
+        started_at = time.monotonic()
         urls_to_try = self._alternate_hosts(url)
         headers = self._headers()
         if requests:
             for try_url in urls_to_try:
-                for attempt in range(1, 4):
+                if self._request_deadline_exceeded(started_at):
+                    print(f"[HTTP ATLA] Toplam istek süresi aşıldı: {url}", file=sys.stderr)
+                    return 0, b"", ""
+                for attempt in range(1, self.retries + 1):
+                    if self._request_deadline_exceeded(started_at):
+                        print(f"[HTTP ATLA] Toplam istek süresi aşıldı: {url}", file=sys.stderr)
+                        return 0, b"", ""
                     try:
                         print(f"[DENEME] {try_url} - {attempt}. deneme")
                         status, content, content_type = self._requests_get(try_url, headers)
@@ -37,8 +46,11 @@ class HttpClient:
                             break
                     except Exception as exc:
                         print(f"[HTTP HATA] {try_url}: {exc}", file=sys.stderr)
-                    time.sleep(2 * attempt)
+                    time.sleep(min(2 * attempt, 5))
         for try_url in urls_to_try:
+            if self._request_deadline_exceeded(started_at):
+                print(f"[URLLIB ATLA] Toplam istek süresi aşıldı: {url}", file=sys.stderr)
+                return 0, b"", ""
             try:
                 print(f"[URLLIB DENEME] {try_url}")
                 import urllib.request
@@ -48,6 +60,9 @@ class HttpClient:
             except Exception as exc:
                 print(f"[URLLIB HATA] {try_url}: {exc}", file=sys.stderr)
         return 0, b"", ""
+
+    def _request_deadline_exceeded(self, started_at: float) -> bool:
+        return (time.monotonic() - started_at) >= self.max_request_seconds
 
     def _wait_before_request(self) -> None:
         elapsed = time.time() - self.last_request_at

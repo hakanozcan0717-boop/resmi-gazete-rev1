@@ -51,7 +51,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CRAWL_DAYS: ${{ inputs.days || '2' }}
         run: |
-          python main.py crawl --days "$CRAWL_DAYS"
+          python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90
 
       - name: SQLite verilerini PostgreSQL'e aktar
         if: ${{ inputs.import_sqlite == 'true' }}

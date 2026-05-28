@@ -61,7 +61,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_crawl.add_argument("--end", help="Bitiş tarihi YYYY-MM-DD")
     p_crawl.add_argument("--days", type=int, help="Bugünden geriye kaç gün indirilsin?")
     p_crawl.add_argument("--data-dir", default=DEFAULT_DATA_DIR, help="PDF/ham veri klasörü")
-    p_crawl.add_argument("--timeout", type=int, default=90)
+    p_crawl.add_argument("--timeout", type=int, default=60)
+    p_crawl.add_argument("--retries", type=int, default=2, help="Her URL için deneme sayısı")
+    p_crawl.add_argument("--max-request-seconds", type=int, default=120, help="Tek URL için toplam süre sınırı")
     p_crawl.add_argument("--sleep", type=float, default=0.6, help="İstekler arası bekleme saniyesi")
     p_crawl.add_argument("--debug", action="store_true")
     p_crawl.set_defaults(func=cmd_crawl)
@@ -129,6 +131,10 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit("crawl için ya --days ya da --start ve --end birlikte verilmelidir.")
         if args.days is not None and args.days <= 0:
             raise SystemExit("--days pozitif olmalıdır.")
+        if args.retries <= 0:
+            raise SystemExit("--retries pozitif olmalıdır.")
+        if args.max_request_seconds <= 0:
+            raise SystemExit("--max-request-seconds pozitif olmalıdır.")
         if args.start and args.end:
             start = parse_date(args.start)
             end = parse_date(args.end)
