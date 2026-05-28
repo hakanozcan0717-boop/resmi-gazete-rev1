@@ -805,9 +805,6 @@ CEVAP:
         """
         RAG + LLM cevabı üretir.
         """
-        if self._is_listing_request(question):
-            return self.answer_without_llm(question=question, top_k=max(top_k, 10))
-
         sources = self.prepare_sources(question, top_k=top_k)
         if not sources:
             return "Uygun kaynak bulunamadı."

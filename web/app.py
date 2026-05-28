@@ -60,13 +60,10 @@ def create_app(db_path: str = DEFAULT_DB):
             if question:
                 try:
                     rag = RAGEngine(db_path=db_path, vector_db_path="vector_db")
-                    if rag._is_listing_request(question):
-                        mode = "sources"
-                        answer = rag.answer_without_llm(question=question, top_k=10)
-                    elif mode == "llm":
+                    if mode == "llm":
                         answer = rag.answer_with_llm(question=question, top_k=5)
                     else:
-                        answer = rag.answer_without_llm(question=question, top_k=5)
+                        answer = rag.answer_without_llm(question=question, top_k=10)
                 except Exception as exc:
                     error = str(exc)
 
