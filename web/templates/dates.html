@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="grid">
+    <div class="card">
+        <h2>Kayıtlı Gün</h2>
+        <p style="font-size:32px;">{{ total_days }}</p>
+    </div>
+    <div class="card">
+        <h2>Toplam Belge</h2>
+        <p style="font-size:32px;">{{ total_documents }}</p>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Çekilen Resmî Gazete Tarihleri</h2>
+    <table>
+        <tr>
+            <th>Tarih</th>
+            <th>Belge Sayısı</th>
+        </tr>
+        {% for date, count in dates %}
+        <tr>
+            <td>{{ date }}</td>
+            <td>{{ count }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

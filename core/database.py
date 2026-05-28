@@ -316,6 +316,9 @@ class GazetteDB:
 
         return [(r["date"], r["n"]) for r in rows]
 
+    def list_dates(self) -> List[Tuple[str, int]]:
+        return self.stats_by_date()
+
     def stats_by_institution(self, limit: int = 20) -> List[Tuple[str, int]]:
         rows = self._fetchall("""
         SELECT institution, COUNT(*) AS n

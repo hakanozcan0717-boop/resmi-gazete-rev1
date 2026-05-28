@@ -46,6 +46,19 @@ def create_app(db_path: str = DEFAULT_DB):
         report = analyzer.build_report()
         return render_template("stats.html", app_name=APP_NAME, report=report)
 
+    @app.route("/dates")
+    def dates_page():
+        dates = db.list_dates()
+        total_days = len(dates)
+        total_documents = sum(n for _, n in dates)
+        return render_template(
+            "dates.html",
+            app_name=APP_NAME,
+            dates=dates,
+            total_days=total_days,
+            total_documents=total_documents,
+        )
+
     @app.route("/rag", methods=["GET", "POST"])
     def rag_page():
         question = ""
