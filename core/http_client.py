@@ -11,8 +11,8 @@ except Exception:
 class HttpClient:
     def __init__(self, timeout: int = 60, sleep: float = 1.5, retries: int = 2, max_request_seconds: Optional[int] = None):
         self.timeout = timeout
-        self.connect_timeout = min(max(timeout, 5), 15)
-        self.pdf_read_timeout = min(max(timeout, 90), 120)
+        self.connect_timeout = min(max(timeout, 5), 30)
+        self.pdf_read_timeout = min(max(timeout, 90), 180)
         self.retries = max(1, retries)
         self.max_request_seconds = max_request_seconds or max(timeout * 2, 120)
         self.sleep = sleep

@@ -68,6 +68,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_crawl.add_argument("--debug", action="store_true")
     p_crawl.add_argument("--fail-on-empty", action="store_true", help="Hiç belge bulunamazsa komutu hata ile bitir")
     p_crawl.add_argument("--fail-on-errors", action="store_true", help="Gün bazlı hata varsa komutu hata ile bitir")
+    p_crawl.add_argument("--empty-day-retries", type=int, default=0, help="Bir gün 0 belge dönerse kaç kez tekrar denensin?")
+    p_crawl.add_argument("--empty-day-sleep", type=float, default=10.0, help="Boş gün tekrarları arasında bekleme saniyesi")
     p_crawl.set_defaults(func=cmd_crawl)
 
     p_search = sub.add_parser("search", help="Veritabanında arama yapar.")
@@ -137,6 +139,10 @@ def validate_args(args: argparse.Namespace) -> None:
             raise SystemExit("--retries pozitif olmalıdır.")
         if args.max_request_seconds <= 0:
             raise SystemExit("--max-request-seconds pozitif olmalıdır.")
+        if args.empty_day_retries < 0:
+            raise SystemExit("--empty-day-retries negatif olamaz.")
+        if args.empty_day_sleep < 0:
+            raise SystemExit("--empty-day-sleep negatif olamaz.")
         if args.start and args.end:
             start = parse_date(args.start)
             end = parse_date(args.end)

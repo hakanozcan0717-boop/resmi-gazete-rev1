@@ -12,6 +12,7 @@ import datetime as dt
 import json
 import sqlite3
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -65,7 +66,17 @@ def cmd_crawl(args) -> None:
 
     for day in date_range(start, end):
         try:
-            items = crawler.fetch_day(day)
+            items = []
+            for attempt in range(args.empty_day_retries + 1):
+                items = crawler.fetch_day(day)
+                if items or attempt >= args.empty_day_retries:
+                    break
+                print(
+                    f"[TEKRAR] {day}: 0 kayıt bulundu. "
+                    f"{args.empty_day_sleep:g} saniye sonra tekrar denenecek "
+                    f"({attempt + 1}/{args.empty_day_retries})."
+                )
+                time.sleep(args.empty_day_sleep)
             fetched_total += len(items)
             day_inserted = 0
             day_skipped = 0

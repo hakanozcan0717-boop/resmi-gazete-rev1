@@ -67,9 +67,9 @@ jobs:
           echo "CRAWL_END=$CRAWL_END"
           set +e
           if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
-            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
+            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 90 --retries 2 --max-request-seconds 240 --sleep 1.5 --empty-day-retries 2 --empty-day-sleep 20 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
           else
-            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
+            python main.py crawl --days "$CRAWL_DAYS" --timeout 90 --retries 2 --max-request-seconds 240 --sleep 1.5 --empty-day-retries 2 --empty-day-sleep 20 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
           fi
           CRAWL_EXIT=${PIPESTATUS[0]}
           echo "CRAWL_EXIT=$CRAWL_EXIT" | tee -a exports/crawl_output.log
