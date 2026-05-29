@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <h2>Render Uzerinden Veri Cek</h2>
+    <p class="muted">Once sadece PostgreSQL'e veri cekmek icin Qdrant secenegini kapali birak. Veri geldikten sonra ayni aralik Qdrant'a islenebilir.</p>
+
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="start">Baslangic tarihi</label>
+            <input id="start" type="date" value="2026-03-13">
+        </div>
+        <div class="form-row">
+            <label for="end">Bitis tarihi</label>
+            <input id="end" type="date" value="2026-03-13">
+        </div>
+    </div>
+
+    <div class="form-row">
+        <label for="token">Admin token</label>
+        <input id="token" type="password" placeholder="Render CRAWL_ADMIN_TOKEN" style="width:100%; box-sizing:border-box;">
+    </div>
+
+    <div class="form-row">
+        <label>
+            <input id="index" type="checkbox">
+            Qdrant'a isle
+        </label>
+        <span class="muted">Kapaliyken OpenAI embedding/token harcanmaz.</span>
+    </div>
+
+    <button type="button" onclick="startCrawl()">Veriyi Cek</button>
+    <button type="button" onclick="refreshJob()" id="refreshBtn" style="display:none;">Durumu Yenile</button>
+</div>
+
+<div class="card">
+    <h2>Durum</h2>
+    <div id="status" class="muted">Henuz is baslatilmadi.</div>
+    <pre id="output" style="background:#111827; color:#e5e7eb; padding:14px; border-radius:8px; min-height:120px;"></pre>
+</div>
+
+<script>
+let currentJobId = "";
+let currentToken = "";
+let pollTimer = null;
+
+function showStatus(text) {
+    document.getElementById("status").textContent = text;
+}
+
+function showOutput(data) {
+    document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+}
+
+async function startCrawl() {
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    const token = document.getElementById("token").value;
+    const shouldIndex = document.getElementById("index").checked;
+
+    if (!start || !end || !token) {
+        showStatus("Tarih ve token zorunlu.");
+        return;
+    }
+
+    currentToken = token;
+    showStatus("Is baslatiliyor...");
+
+    try {
+        const response = await fetch("/admin/crawl", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Admin-Token": token
+            },
+            body: JSON.stringify({ start: start, end: end, index: shouldIndex })
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Baslatilamadi.");
+            return;
+        }
+
+        currentJobId = data.job_id;
+        document.getElementById("refreshBtn").style.display = "inline-block";
+        showStatus("Is basladi. Durum izleniyor...");
+        refreshJob();
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(refreshJob, 5000);
+    } catch (error) {
+        showStatus("Istek hatasi: " + error);
+    }
+}
+
+async function refreshJob() {
+    if (!currentJobId || !currentToken) return;
+
+    try {
+        const response = await fetch("/admin/jobs/" + currentJobId, {
+            headers: { "X-Admin-Token": currentToken }
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        const status = data.status || "bilinmiyor";
+        showStatus("Durum: " + status);
+
+        if (["completed", "empty", "failed"].includes(status) && pollTimer) {
+            clearInterval(pollTimer);
+            pollTimer = null;
+        }
+    } catch (error) {
+        showStatus("Durum okunamadi: " + error);
+    }
+}
+</script>
+{% endblock %}

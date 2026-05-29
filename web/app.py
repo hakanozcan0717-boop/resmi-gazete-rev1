@@ -152,6 +152,10 @@ def create_app(db_path: str = DEFAULT_DB):
             total_documents=total_documents,
         )
 
+    @app.route("/admin")
+    def admin_page():
+        return render_template("admin.html", app_name=APP_NAME)
+
     @app.route("/rag", methods=["GET", "POST"])
     def rag_page():
         question = ""
