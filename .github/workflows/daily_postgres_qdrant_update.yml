@@ -61,14 +61,27 @@ jobs:
           CRAWL_START: ${{ inputs.crawl_start }}
           CRAWL_END: ${{ inputs.crawl_end }}
         run: |
+          mkdir -p exports
           echo "CRAWL_DAYS=$CRAWL_DAYS"
           echo "CRAWL_START=$CRAWL_START"
           echo "CRAWL_END=$CRAWL_END"
+          set +e
           if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
-            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty
+            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
           else
-            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty
+            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
           fi
+          CRAWL_EXIT=${PIPESTATUS[0]}
+          echo "CRAWL_EXIT=$CRAWL_EXIT" | tee -a exports/crawl_output.log
+          exit "$CRAWL_EXIT"
+
+      - name: Crawl hata logunu yukle
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: crawl-diagnostics
+          path: exports/crawl_output.log
+          if-no-files-found: ignore
 
       - name: Cekilen aralikta kayit var mi kontrol et
         if: ${{ inputs.crawl_start != '' && inputs.crawl_end != '' }}
