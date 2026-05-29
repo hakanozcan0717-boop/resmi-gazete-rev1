@@ -30,6 +30,7 @@
 
     <button type="button" onclick="startCrawl()">Veriyi Cek</button>
     <button type="button" onclick="loadLatestJob()">Son Isi Getir</button>
+    <button type="button" onclick="loadQdrantDates()">Qdrant Tarihleri</button>
     <button type="button" onclick="refreshJob()" id="refreshBtn" style="display:none;">Durumu Yenile</button>
 </div>
 
@@ -162,6 +163,36 @@ async function loadLatestJob() {
         }
     } catch (error) {
         showStatus("Son is okunamadi: " + error);
+    }
+}
+
+async function loadQdrantDates() {
+    const token = document.getElementById("token").value.trim();
+    if (!token) {
+        showStatus("Token zorunlu.");
+        return;
+    }
+
+    showStatus("Qdrant tarihleri okunuyor...");
+
+    try {
+        const response = await fetch("/admin/qdrant/dates", {
+            headers: { "X-Admin-Token": token }
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Qdrant tarihleri okunamadi: HTTP " + response.status + " - " + (data.error || "hata"));
+            return;
+        }
+
+        document.getElementById("logs").textContent = data.dates
+            .map(row => row.date + ": " + row.chunk_count + " parca")
+            .join("\n");
+        showStatus("Qdrant: " + data.date_count + " tarih, " + data.chunk_count + " parca");
+    } catch (error) {
+        showStatus("Qdrant tarihleri okunamadi: " + error);
     }
 }
 </script>

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+from collections import Counter
 from typing import Dict, List
 
 from openai import OpenAI
@@ -163,3 +164,29 @@ class VectorStore:
             })
 
         return output
+
+    def date_counts(self, batch_size: int = 256) -> List[Dict]:
+        counts = Counter()
+        next_offset = None
+
+        while True:
+            points, next_offset = self.qdrant.scroll(
+                collection_name=self.collection_name,
+                limit=batch_size,
+                offset=next_offset,
+                with_payload=["date"],
+                with_vectors=False,
+            )
+
+            for point in points:
+                payload = point.payload or {}
+                date = payload.get("date") or "-"
+                counts[str(date)] += 1
+
+            if next_offset is None:
+                break
+
+        return [
+            {"date": date, "chunk_count": count}
+            for date, count in sorted(counts.items(), reverse=True)
+        ]

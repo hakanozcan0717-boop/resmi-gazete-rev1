@@ -21,6 +21,7 @@ from core.crawler import OfficialGazetteCrawler
 from core.database import GazetteDB
 from core.rag import RAGEngine
 from core.utils import date_range, parse_date
+from core.vector_store import VectorStore
 
 
 ADMIN_JOBS = {}
@@ -295,5 +296,20 @@ def create_app(db_path: str = DEFAULT_DB):
             if not job:
                 return jsonify({"error": "job bulunamadi"}), 404
             return jsonify(_public_job(job))
+
+    @app.route("/admin/qdrant/dates")
+    def admin_qdrant_dates():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+        try:
+            store = VectorStore()
+            counts = store.date_counts()
+            return jsonify({
+                "date_count": len(counts),
+                "chunk_count": sum(row["chunk_count"] for row in counts),
+                "dates": counts,
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
 
     return app
