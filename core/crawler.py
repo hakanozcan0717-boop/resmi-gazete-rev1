@@ -3,6 +3,7 @@ import datetime as dt
 import html
 import re
 import sys
+import time
 import urllib.parse
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -73,6 +74,8 @@ class OfficialGazetteCrawler:
         candidate_links = []
         for title, href in links:
             if day_key in href and (href.endswith(".htm") or href.endswith(".html") or href.endswith(".pdf")):
+                if href == self.daily_pdf_url(day):
+                    continue
                 candidate_links.append((title, href))
         if not candidate_links:
             text = self._html_to_text(decoded)
@@ -146,7 +149,14 @@ class OfficialGazetteCrawler:
             try:
                 reader = PdfReader(str(pdf_path))
                 pages = []
-                for page in reader.pages:
+                started_at = time.monotonic()
+                for page_index, page in enumerate(reader.pages):
+                    if page_index >= 30:
+                        pages.append("[PDF metin çıkarma ilk 30 sayfa ile sınırlandı.]")
+                        break
+                    if time.monotonic() - started_at > 30:
+                        pages.append("[PDF metin çıkarma süre sınırı nedeniyle durduruldu.]")
+                        break
                     try:
                         pages.append(page.extract_text() or "")
                     except Exception:
