@@ -27,14 +27,16 @@
 {% endif %}
 
 {% if answer %}
-<div class="card">
+<div class="card answer-card">
     <h3>Cevap</h3>
-    <pre>{{ answer }}</pre>
+    <div class="answer-panel">
+        <pre class="answer-text">{{ answer }}</pre>
+    </div>
 </div>
 {% endif %}
 
 {% if sources %}
-<div class="card">
+<div class="card sources-card">
     <h3>Bulunan Kaynaklar</h3>
     <table>
         <tr>
