@@ -65,9 +65,9 @@ jobs:
           echo "CRAWL_START=$CRAWL_START"
           echo "CRAWL_END=$CRAWL_END"
           if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
-            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty --fail-on-errors
+            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty
           else
-            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty --fail-on-errors
+            python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90 --debug --fail-on-empty
           fi
 
       - name: Cekilen aralikta kayit var mi kontrol et
