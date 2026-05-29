@@ -29,6 +29,7 @@
     </div>
 
     <button type="button" onclick="startCrawl()">Veriyi Cek</button>
+    <button type="button" onclick="loadLatestJob()">Son Isi Getir</button>
     <button type="button" onclick="refreshJob()" id="refreshBtn" style="display:none;">Durumu Yenile</button>
 </div>
 
@@ -126,6 +127,41 @@ async function refreshJob() {
         }
     } catch (error) {
         showStatus("Durum okunamadi: " + error);
+    }
+}
+
+async function loadLatestJob() {
+    const token = document.getElementById("token").value.trim();
+    if (!token) {
+        showStatus("Token zorunlu.");
+        return;
+    }
+
+    currentToken = token;
+    showStatus("Son is okunuyor...");
+
+    try {
+        const response = await fetch("/admin/jobs/latest", {
+            headers: { "X-Admin-Token": token }
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Son is okunamadi: HTTP " + response.status + " - " + (data.error || "hata"));
+            return;
+        }
+
+        currentJobId = data.id;
+        document.getElementById("refreshBtn").style.display = "inline-block";
+        showStatus("Durum: " + (data.status || "bilinmiyor"));
+
+        if (!["completed", "empty", "failed"].includes(data.status)) {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(refreshJob, 5000);
+        }
+    } catch (error) {
+        showStatus("Son is okunamadi: " + error);
     }
 }
 </script>

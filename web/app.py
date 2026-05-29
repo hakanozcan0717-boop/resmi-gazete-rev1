@@ -23,11 +23,16 @@ from core.rag import RAGEngine
 from core.utils import date_range, parse_date
 
 
+ADMIN_JOBS = {}
+ADMIN_JOBS_LOCK = threading.Lock()
+LATEST_ADMIN_JOB_ID = None
+
+
 def create_app(db_path: str = DEFAULT_DB):
     app = Flask(__name__)
     db = GazetteDB(db_path)
-    admin_jobs = {}
-    admin_jobs_lock = threading.Lock()
+    admin_jobs = ADMIN_JOBS
+    admin_jobs_lock = ADMIN_JOBS_LOCK
 
     def _admin_authorized() -> bool:
         expected = os.getenv("CRAWL_ADMIN_TOKEN") or os.getenv("ADMIN_TOKEN")
@@ -47,6 +52,11 @@ def create_app(db_path: str = DEFAULT_DB):
         with admin_jobs_lock:
             if job_id in admin_jobs:
                 admin_jobs[job_id].update(values)
+
+    def _public_job(job):
+        if not job:
+            return None
+        return dict(job)
 
     def _log_captured_output(job_id: str, output: str) -> None:
         for line in output.splitlines():
@@ -243,11 +253,13 @@ def create_app(db_path: str = DEFAULT_DB):
             return jsonify({"error": str(exc)}), 400
 
         with admin_jobs_lock:
+            global LATEST_ADMIN_JOB_ID
             for job in admin_jobs.values():
                 if job.get("status") in {"queued", "running"}:
-                    return jsonify({"error": "zaten calisan bir job var", "job": job}), 409
+                    return jsonify({"error": "zaten calisan bir job var", "job": _public_job(job)}), 409
 
             job_id = uuid.uuid4().hex[:12]
+            LATEST_ADMIN_JOB_ID = job_id
             admin_jobs[job_id] = {
                 "id": job_id,
                 "status": "queued",
@@ -270,6 +282,18 @@ def create_app(db_path: str = DEFAULT_DB):
             job = admin_jobs.get(job_id)
             if not job:
                 return jsonify({"error": "job bulunamadi"}), 404
-            return jsonify(job)
+            return jsonify(_public_job(job))
+
+    @app.route("/admin/jobs/latest")
+    def admin_latest_job_status():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+        with admin_jobs_lock:
+            if not LATEST_ADMIN_JOB_ID:
+                return jsonify({"error": "job bulunamadi"}), 404
+            job = admin_jobs.get(LATEST_ADMIN_JOB_ID)
+            if not job:
+                return jsonify({"error": "job bulunamadi"}), 404
+            return jsonify(_public_job(job))
 
     return app
