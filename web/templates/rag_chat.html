@@ -38,29 +38,23 @@
 {% if sources %}
 <div class="card sources-card">
     <h3>Bulunan Kaynaklar</h3>
-    <table>
-        <tr>
-            <th>#</th>
-            <th>Kaynak</th>
-            <th>Tarih</th>
-            <th>Kategori</th>
-        </tr>
+    <div class="source-list">
         {% for item in sources %}
         {% set meta = item["metadata"] %}
-        <tr>
-            <td>{{ loop.index }}</td>
-            <td>
-                <strong>{{ meta["title"] }}</strong>
-                {% if meta["snippet"] %}
-                    <br><span class="muted">{{ meta["snippet"] }}</span>
-                {% endif %}
-                <br><a href="{{ meta['item_url'] }}" target="_blank" rel="noopener">Kaynağı aç</a>
-            </td>
-            <td>{{ meta["date"] }}</td>
-            <td><span class="tag">{{ meta["category"] }}</span></td>
-        </tr>
+        <div class="source-item">
+            <div class="source-meta">
+                <span class="source-number">{{ loop.index }}</span>
+                <span>{{ meta["date"] }}</span>
+                <span class="tag">{{ meta["category"] }}</span>
+            </div>
+            <div class="source-title"><strong>{{ meta["title"] }}</strong></div>
+            {% if meta["snippet"] %}
+                <div class="source-snippet">{{ meta["snippet"] }}</div>
+            {% endif %}
+            <a href="{{ meta['item_url'] }}" target="_blank" rel="noopener">Kaynağı aç</a>
+        </div>
         {% endfor %}
-    </table>
+    </div>
 </div>
 {% elif question and mode == "sources" and not error %}
 <div class="card">
