@@ -14,28 +14,3 @@ services:
         value: gpt-5.2
       - key: CRAWL_ADMIN_TOKEN
         sync: false
-  - type: cron
-    name: resmi-gazete-daily-update
-    env: python
-    schedule: "30 5 * * *"
-    buildCommand: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
-    startCommand: python main.py daily-update --days 2 --fail-on-empty --debug
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.9
-      - key: DATABASE_URL
-        sync: false
-      - key: QDRANT_URL
-        sync: false
-      - key: QDRANT_API_KEY
-        sync: false
-      - key: QDRANT_COLLECTION
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_MODEL
-        value: gpt-5.2
-      - key: OPENAI_EMBEDDING_MODEL
-        value: text-embedding-3-small

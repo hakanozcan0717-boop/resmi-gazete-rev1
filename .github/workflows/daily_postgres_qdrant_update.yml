@@ -8,7 +8,7 @@ on:
       days:
         description: "Kaç günlük veri çekilip Qdrant'a indekslensin?"
         required: true
-        default: "7"
+        default: "2"
       crawl_start:
         description: "Veri çekme başlangıç tarihi YYYY-MM-DD; boşsa days kullanılır"
         required: false
