@@ -53,11 +53,13 @@ jobs:
               raise SystemExit("CRAWL_ADMIN_TOKEN secret eksik.")
 
           if not start or not end:
-              today = dt.date.today()
+              turkey_tz = dt.timezone(dt.timedelta(hours=3))
+              today = dt.datetime.now(turkey_tz).date()
               start = (today - dt.timedelta(days=days - 1)).isoformat()
               end = today.isoformat()
 
           print(f"Render URL: {base_url}")
+          print("Tarih hesabi: Europe/Istanbul (UTC+3)")
           print(f"Tarih araligi: {start} - {end}")
 
           def request_json(method, path, payload=None):
