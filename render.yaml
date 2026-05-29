@@ -12,3 +12,5 @@ services:
         value: 3.11.9
       - key: OPENAI_MODEL
         value: gpt-5.2
+      - key: CRAWL_ADMIN_TOKEN
+        sync: false

@@ -5,17 +5,110 @@ Flask web paneli.
 Bu sürümde RAG + LLM sayfası da eklenmiştir.
 """
 
+import datetime as dt
+import os
+import threading
+import traceback
+import uuid
+
 from flask import Flask, jsonify, render_template, request
 
 from config.settings import APP_NAME, DEFAULT_DB
 from core.analyzer import GazetteAnalyzer
+from core.crawler import OfficialGazetteCrawler
 from core.database import GazetteDB
 from core.rag import RAGEngine
+from core.utils import date_range, parse_date
 
 
 def create_app(db_path: str = DEFAULT_DB):
     app = Flask(__name__)
     db = GazetteDB(db_path)
+    admin_jobs = {}
+    admin_jobs_lock = threading.Lock()
+
+    def _admin_authorized() -> bool:
+        expected = os.getenv("CRAWL_ADMIN_TOKEN") or os.getenv("ADMIN_TOKEN")
+        if not expected:
+            return False
+        supplied = request.headers.get("X-Admin-Token") or request.args.get("token") or request.form.get("token")
+        return supplied == expected
+
+    def _job_log(job_id: str, message: str) -> None:
+        line = f"{dt.datetime.now().replace(microsecond=0).isoformat()} {message}"
+        with admin_jobs_lock:
+            job = admin_jobs.get(job_id)
+            if job is not None:
+                job.setdefault("logs", []).append(line)
+
+    def _set_job(job_id: str, **values) -> None:
+        with admin_jobs_lock:
+            if job_id in admin_jobs:
+                admin_jobs[job_id].update(values)
+
+    def _run_crawl_job(job_id: str, start_date: str, end_date: str, should_index: bool) -> None:
+        _set_job(job_id, status="running", started_at=dt.datetime.now().isoformat(timespec="seconds"))
+        try:
+            start = parse_date(start_date)
+            end = parse_date(end_date)
+            job_db = GazetteDB(db_path)
+            crawler = OfficialGazetteCrawler(timeout=90, sleep=1.5, retries=2, max_request_seconds=240)
+
+            found = 0
+            inserted = 0
+            skipped = 0
+            errors = 0
+
+            for day in date_range(start, end):
+                _job_log(job_id, f"[TARA] {day}")
+                try:
+                    items = []
+                    for attempt in range(3):
+                        items = crawler.fetch_day(day)
+                        if items or attempt == 2:
+                            break
+                        _job_log(job_id, f"[TEKRAR] {day}: 0 kayıt, tekrar deneniyor ({attempt + 1}/2)")
+                        threading.Event().wait(20)
+
+                    found += len(items)
+                    day_inserted = 0
+                    day_skipped = 0
+                    for item in items:
+                        if job_db.insert_item(item):
+                            inserted += 1
+                            day_inserted += 1
+                        else:
+                            skipped += 1
+                            day_skipped += 1
+                    _job_log(job_id, f"[GUN OZET] {day}: bulunan={len(items)}, yeni={day_inserted}, atlanan={day_skipped}")
+                except Exception as exc:
+                    errors += 1
+                    _job_log(job_id, f"[GUN HATA] {day}: {exc}")
+
+            job_db.log_crawl(start.isoformat(), end.isoformat(), inserted, errors, notes=f"render_admin_job={job_id}; bulunan={found}; atlanan={skipped}")
+            _job_log(job_id, f"[CRAWL] bulunan={found}, yeni={inserted}, atlanan={skipped}, hata={errors}")
+
+            indexed_chunks = 0
+            if should_index and found:
+                _job_log(job_id, f"[QDRANT] indeksleme basliyor: {start_date} - {end_date}")
+                rag = RAGEngine(db_path=db_path, vector_db_path="vector_db")
+                indexed_chunks = rag.build_index(start_date=start_date, end_date=end_date)
+                _job_log(job_id, f"[QDRANT] parca={indexed_chunks}")
+
+            _set_job(
+                job_id,
+                status="completed" if found else "empty",
+                finished_at=dt.datetime.now().isoformat(timespec="seconds"),
+                found=found,
+                inserted=inserted,
+                skipped=skipped,
+                errors=errors,
+                indexed_chunks=indexed_chunks,
+            )
+        except Exception as exc:
+            _job_log(job_id, "[HATA] " + str(exc))
+            _job_log(job_id, traceback.format_exc())
+            _set_job(job_id, status="failed", error=str(exc), finished_at=dt.datetime.now().isoformat(timespec="seconds"))
 
     @app.route("/")
     def index():
@@ -95,5 +188,57 @@ def create_app(db_path: str = DEFAULT_DB):
     def api_stats():
         analyzer = GazetteAnalyzer(db)
         return jsonify(analyzer.build_report())
+
+    @app.route("/admin/crawl", methods=["POST"])
+    def admin_crawl():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        start_date = (request.form.get("start") or payload.get("start") or "").strip()
+        end_date = (request.form.get("end") or payload.get("end") or "").strip()
+        should_index_raw = str(request.form.get("index") or payload.get("index") or request.args.get("index") or "true").lower()
+        should_index = should_index_raw not in {"0", "false", "no", "hayir", "hayır"}
+
+        if not start_date or not end_date:
+            return jsonify({"error": "start ve end zorunlu; format YYYY-MM-DD"}), 400
+
+        try:
+            start = parse_date(start_date)
+            end = parse_date(end_date)
+            if start > end:
+                return jsonify({"error": "start end tarihinden buyuk olamaz"}), 400
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        with admin_jobs_lock:
+            for job in admin_jobs.values():
+                if job.get("status") in {"queued", "running"}:
+                    return jsonify({"error": "zaten calisan bir job var", "job": job}), 409
+
+            job_id = uuid.uuid4().hex[:12]
+            admin_jobs[job_id] = {
+                "id": job_id,
+                "status": "queued",
+                "start": start_date,
+                "end": end_date,
+                "index": should_index,
+                "created_at": dt.datetime.now().isoformat(timespec="seconds"),
+                "logs": [],
+            }
+
+        thread = threading.Thread(target=_run_crawl_job, args=(job_id, start_date, end_date, should_index), daemon=True)
+        thread.start()
+        return jsonify({"job_id": job_id, "status_url": f"/admin/jobs/{job_id}"})
+
+    @app.route("/admin/jobs/<job_id>")
+    def admin_job_status(job_id: str):
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+        with admin_jobs_lock:
+            job = admin_jobs.get(job_id)
+            if not job:
+                return jsonify({"error": "job bulunamadi"}), 404
+            return jsonify(job)
 
     return app
