@@ -57,16 +57,28 @@ class VectorStore:
         collections = self.qdrant.get_collections().collections
         collection_names = [c.name for c in collections]
 
-        if self.collection_name in collection_names:
-            return
+        if self.collection_name not in collection_names:
+            self.qdrant.create_collection(
+                collection_name=self.collection_name,
+                vectors_config=models.VectorParams(
+                    size=self.vector_size,
+                    distance=models.Distance.COSINE,
+                ),
+            )
 
-        self.qdrant.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=models.VectorParams(
-                size=self.vector_size,
-                distance=models.Distance.COSINE,
-            ),
-        )
+        self._ensure_payload_indexes()
+
+    def _ensure_payload_indexes(self) -> None:
+        try:
+            self.qdrant.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="date",
+                field_schema=models.PayloadSchemaType.KEYWORD,
+            )
+        except Exception as exc:
+            message = str(exc).lower()
+            if "already exists" not in message and "already has" not in message:
+                print(f"[QDRANT] date payload index kontrolü atlandı: {exc}")
 
     def _stable_point_id(self, raw_id: str) -> int:
         digest = hashlib.sha256(raw_id.encode("utf-8")).hexdigest()
@@ -192,6 +204,7 @@ class VectorStore:
         ]
 
     def delete_year(self, year: int) -> Dict:
+        self._ensure_payload_indexes()
         prefix = f"{year:04d}-"
         rows = [row for row in self.date_counts() if row["date"].startswith(prefix)]
 
