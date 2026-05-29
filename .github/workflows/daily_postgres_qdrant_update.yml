@@ -1,4 +1,4 @@
-name: Daily Resmi Gazete PostgreSQL + Qdrant Update
+name: Daily Resmi Gazete Render Trigger
 
 on:
   schedule:
@@ -6,150 +6,142 @@ on:
   workflow_dispatch:
     inputs:
       days:
-        description: "Kaç günlük veri çekilip Qdrant'a indekslensin?"
+        description: "Kac gunluk veri Render tarafindan cekilip Qdrant'a islensin?"
         required: true
         default: "2"
       crawl_start:
-        description: "Veri çekme başlangıç tarihi YYYY-MM-DD; boşsa days kullanılır"
+        description: "Baslangic tarihi YYYY-MM-DD; bossa days kullanilir"
         required: false
         default: ""
       crawl_end:
-        description: "Veri çekme bitiş tarihi YYYY-MM-DD; boşsa days kullanılır"
-        required: false
-        default: ""
-      import_sqlite:
-        description: "Repo içindeki resmi_gazete.db verilerini PostgreSQL'e aktar"
-        required: true
-        default: "false"
-        type: choice
-        options:
-          - "false"
-          - "true"
-      index_start:
-        description: "Qdrant indeks başlangıç tarihi YYYY-MM-DD; boşsa days kullanılır"
-        required: false
-        default: ""
-      index_end:
-        description: "Qdrant indeks bitiş tarihi YYYY-MM-DD; boşsa days kullanılır"
+        description: "Bitis tarihi YYYY-MM-DD; bossa days kullanilir"
         required: false
         default: ""
 
 jobs:
-  daily-update:
+  trigger-render-update:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
 
     steps:
-      - name: Repo kodlarini indir
-        uses: actions/checkout@v4
-
-      - name: Python kur
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-
-      - name: Paketleri kur
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Resmi Gazete verisini PostgreSQL'e cek
-        timeout-minutes: 180
+      - name: Render daily update tetikle
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CRAWL_DAYS: ${{ inputs.days || '2' }}
+          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
+          CRAWL_ADMIN_TOKEN: ${{ secrets.CRAWL_ADMIN_TOKEN }}
+          DAYS: ${{ inputs.days || '2' }}
           CRAWL_START: ${{ inputs.crawl_start }}
           CRAWL_END: ${{ inputs.crawl_end }}
         run: |
-          mkdir -p exports
-          echo "CRAWL_DAYS=$CRAWL_DAYS"
-          echo "CRAWL_START=$CRAWL_START"
-          echo "CRAWL_END=$CRAWL_END"
-          set +e
-          if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
-            python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 90 --retries 2 --max-request-seconds 240 --sleep 1.5 --empty-day-retries 2 --empty-day-sleep 20 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
-          else
-            python main.py crawl --days "$CRAWL_DAYS" --timeout 90 --retries 2 --max-request-seconds 240 --sleep 1.5 --empty-day-retries 2 --empty-day-sleep 20 --debug --fail-on-empty 2>&1 | tee exports/crawl_output.log
-          fi
-          CRAWL_EXIT=${PIPESTATUS[0]}
-          echo "CRAWL_EXIT=$CRAWL_EXIT" | tee -a exports/crawl_output.log
-          exit "$CRAWL_EXIT"
+          python - <<'PY'
+          import datetime as dt
+          import json
+          import os
+          import sys
+          import time
+          import urllib.error
+          import urllib.request
 
-      - name: Crawl hata logunu yukle
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: crawl-diagnostics
-          path: exports/crawl_output.log
-          if-no-files-found: ignore
+          base_url = (os.environ.get("RENDER_APP_URL") or "").rstrip("/")
+          token = os.environ.get("CRAWL_ADMIN_TOKEN") or ""
+          days = int(os.environ.get("DAYS") or "2")
+          start = os.environ.get("CRAWL_START") or ""
+          end = os.environ.get("CRAWL_END") or ""
 
-      - name: Cekilen aralikta kayit var mi kontrol et
-        if: ${{ inputs.crawl_start != '' && inputs.crawl_end != '' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CRAWL_START: ${{ inputs.crawl_start }}
-          CRAWL_END: ${{ inputs.crawl_end }}
-        run: |
-          python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date', ('$CRAWL_START', '$CRAWL_END')); print('Kontrol araligi:', '$CRAWL_START', '$CRAWL_END'); print('Gun sayisi:', len(rows)); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]; raise SystemExit(1 if len(rows) == 0 else 0)"
+          if not base_url:
+              raise SystemExit("RENDER_APP_URL secret eksik.")
+          if not token:
+              raise SystemExit("CRAWL_ADMIN_TOKEN secret eksik.")
 
-      - name: SQLite verilerini PostgreSQL'e aktar
-        if: ${{ inputs.import_sqlite == 'true' }}
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python main.py import-sqlite --sqlite-db resmi_gazete.db
+          if not start or not end:
+              today = dt.date.today()
+              start = (today - dt.timedelta(days=days - 1)).isoformat()
+              end = today.isoformat()
 
-      - name: Qdrant RAG indeksini guncelle
-        timeout-minutes: 180
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          QDRANT_URL: ${{ secrets.QDRANT_URL }}
-          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
-          QDRANT_COLLECTION: ${{ secrets.QDRANT_COLLECTION }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_EMBEDDING_MODEL: text-embedding-3-small
-          INDEX_DAYS: ${{ inputs.days || '2' }}
-          INDEX_START: ${{ inputs.index_start }}
-          INDEX_END: ${{ inputs.index_end }}
-          CRAWL_START: ${{ inputs.crawl_start }}
-          CRAWL_END: ${{ inputs.crawl_end }}
-        run: |
-          if [ -z "$INDEX_START" ] && [ -n "$CRAWL_START" ]; then
-            INDEX_START="$CRAWL_START"
-          fi
-          if [ -z "$INDEX_END" ] && [ -n "$CRAWL_END" ]; then
-            INDEX_END="$CRAWL_END"
-          fi
-          if [ -n "$INDEX_START" ] && [ -n "$INDEX_END" ]; then
-            python main.py rag-index --start "$INDEX_START" --end "$INDEX_END"
-          else
-            python main.py rag-index --days "$INDEX_DAYS"
-          fi
+          print(f"Render URL: {base_url}")
+          print(f"Tarih araligi: {start} - {end}")
 
-      - name: Secilen tarih araligi veritabaninda var mi
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CRAWL_START: ${{ inputs.crawl_start }}
-          CRAWL_END: ${{ inputs.crawl_end }}
-          INDEX_START: ${{ inputs.index_start }}
-          INDEX_END: ${{ inputs.index_end }}
-        run: |
-          START_DATE="${CRAWL_START:-$INDEX_START}"
-          END_DATE="${CRAWL_END:-$INDEX_END}"
-          if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
-            python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date', ('$START_DATE', '$END_DATE')); print('Aralik:', '$START_DATE', '$END_DATE'); print('Gun sayisi:', len(rows)); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]"
-          else
-            python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items GROUP BY date ORDER BY date DESC LIMIT 10'); print('Son 10 tarih:'); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]"
-          fi
+          def request_json(method, path, payload=None):
+              data = None
+              headers = {
+                  "X-Admin-Token": token,
+                  "Accept": "application/json",
+              }
+              if payload is not None:
+                  data = json.dumps(payload).encode("utf-8")
+                  headers["Content-Type"] = "application/json"
 
-      - name: Analiz raporu uret
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python main.py analyze --json-out exports/gunluk_analiz.json
+              req = urllib.request.Request(
+                  base_url + path,
+                  data=data,
+                  headers=headers,
+                  method=method,
+              )
+              try:
+                  with urllib.request.urlopen(req, timeout=60) as response:
+                      body = response.read().decode("utf-8")
+                      return response.status, json.loads(body or "{}")
+              except urllib.error.HTTPError as exc:
+                  body = exc.read().decode("utf-8", errors="replace")
+                  try:
+                      parsed = json.loads(body or "{}")
+                  except Exception:
+                      parsed = {"error": body}
+                  return exc.code, parsed
 
-      - name: Veritabani ozetini goster
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: |
-          python -c "from core.database import GazetteDB; db=GazetteDB(); r=db._fetchall('SELECT MIN(date) AS ilk_tarih, MAX(date) AS son_tarih, COUNT(DISTINCT date) AS gun_sayisi, COUNT(*) AS belge_sayisi FROM gazette_items')[0]; print('İlk tarih:', r['ilk_tarih']); print('Son tarih:', r['son_tarih']); print('Gün sayısı:', r['gun_sayisi']); print('Belge sayısı:', r['belge_sayisi'])"
+          status, data = request_json(
+              "POST",
+              "/admin/crawl",
+              {"start": start, "end": end, "index": True},
+          )
+          print("Baslatma cevabi:", json.dumps(data, ensure_ascii=False))
+
+          if status == 409 and isinstance(data.get("job"), dict):
+              job_id = data["job"].get("id")
+          elif status == 200:
+              job_id = data.get("job_id")
+          else:
+              raise SystemExit(f"Render job baslatilamadi. HTTP {status}: {data}")
+
+          if not job_id:
+              raise SystemExit("Render job_id alinamadi.")
+
+          terminal = {"completed", "empty", "failed"}
+          last_log_count = 0
+          final_data = None
+
+          for _ in range(180):
+              status, job = request_json("GET", f"/admin/jobs/{job_id}")
+              if status != 200:
+                  raise SystemExit(f"Render job okunamadi. HTTP {status}: {job}")
+
+              logs = job.get("logs") or []
+              for line in logs[last_log_count:]:
+                  print(line)
+              last_log_count = len(logs)
+
+              print(
+                  "Durum:",
+                  job.get("status"),
+                  "bulunan=",
+                  job.get("found"),
+                  "yeni=",
+                  job.get("inserted"),
+                  "atlanan=",
+                  job.get("skipped"),
+                  "qdrant=",
+                  job.get("indexed_chunks"),
+              )
+
+              if job.get("status") in terminal:
+                  final_data = job
+                  break
+
+              time.sleep(20)
+
+          if final_data is None:
+              raise SystemExit("Render job zaman asimina girdi.")
+          if final_data.get("status") != "completed":
+              raise SystemExit(f"Render job basarisiz: {final_data.get('status')} {final_data}")
+
+          print("Render daily update tamamlandi.")
+          PY
