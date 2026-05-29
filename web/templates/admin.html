@@ -35,6 +35,10 @@
 <div class="card">
     <h2>Durum</h2>
     <div id="status" class="muted">Henuz is baslatilmadi.</div>
+    <div id="summary" style="margin:12px 0;"></div>
+    <h3>Loglar</h3>
+    <pre id="logs" style="background:#111827; color:#e5e7eb; padding:14px; border-radius:8px; min-height:160px;"></pre>
+    <h3>Ham Cikti</h3>
     <pre id="output" style="background:#111827; color:#e5e7eb; padding:14px; border-radius:8px; min-height:120px;"></pre>
 </div>
 
@@ -49,6 +53,16 @@ function showStatus(text) {
 
 function showOutput(data) {
     document.getElementById("output").textContent = JSON.stringify(data, null, 2);
+    document.getElementById("logs").textContent = Array.isArray(data.logs) ? data.logs.join("\n") : "";
+
+    const fields = [];
+    if (data.status) fields.push("Durum: " + data.status);
+    if (data.found !== undefined) fields.push("Bulunan: " + data.found);
+    if (data.inserted !== undefined) fields.push("Yeni: " + data.inserted);
+    if (data.skipped !== undefined) fields.push("Atlanan: " + data.skipped);
+    if (data.errors !== undefined) fields.push("Hata: " + data.errors);
+    if (data.indexed_chunks !== undefined) fields.push("Qdrant parca: " + data.indexed_chunks);
+    document.getElementById("summary").innerHTML = fields.map(x => '<span class="tag">' + x + '</span>').join(" ");
 }
 
 async function startCrawl() {

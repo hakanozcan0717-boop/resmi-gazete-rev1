@@ -5,7 +5,9 @@ Flask web paneli.
 Bu sürümde RAG + LLM sayfası da eklenmiştir.
 """
 
+import contextlib
 import datetime as dt
+import io
 import os
 import threading
 import traceback
@@ -46,6 +48,24 @@ def create_app(db_path: str = DEFAULT_DB):
             if job_id in admin_jobs:
                 admin_jobs[job_id].update(values)
 
+    def _log_captured_output(job_id: str, output: str) -> None:
+        for line in output.splitlines():
+            line = line.strip()
+            if line:
+                _job_log(job_id, line)
+
+    def _date_counts(job_db: GazetteDB, start_date: str, end_date: str):
+        return job_db._fetchall(
+            """
+            SELECT date, COUNT(*) AS belge_sayisi
+            FROM gazette_items
+            WHERE date >= ? AND date <= ?
+            GROUP BY date
+            ORDER BY date
+            """,
+            (start_date, end_date),
+        )
+
     def _run_crawl_job(job_id: str, start_date: str, end_date: str, should_index: bool) -> None:
         _set_job(job_id, status="running", started_at=dt.datetime.now().isoformat(timespec="seconds"))
         try:
@@ -64,7 +84,10 @@ def create_app(db_path: str = DEFAULT_DB):
                 try:
                     items = []
                     for attempt in range(3):
-                        items = crawler.fetch_day(day)
+                        captured = io.StringIO()
+                        with contextlib.redirect_stdout(captured), contextlib.redirect_stderr(captured):
+                            items = crawler.fetch_day(day)
+                        _log_captured_output(job_id, captured.getvalue())
                         if items or attempt == 2:
                             break
                         _job_log(job_id, f"[TEKRAR] {day}: 0 kayıt, tekrar deneniyor ({attempt + 1}/2)")
@@ -87,6 +110,9 @@ def create_app(db_path: str = DEFAULT_DB):
 
             job_db.log_crawl(start.isoformat(), end.isoformat(), inserted, errors, notes=f"render_admin_job={job_id}; bulunan={found}; atlanan={skipped}")
             _job_log(job_id, f"[CRAWL] bulunan={found}, yeni={inserted}, atlanan={skipped}, hata={errors}")
+            date_counts = _date_counts(job_db, start_date, end_date)
+            for row in date_counts:
+                _job_log(job_id, f"[DB] {row['date']}: {row['belge_sayisi']} belge")
 
             indexed_chunks = 0
             if should_index and found:
@@ -104,6 +130,7 @@ def create_app(db_path: str = DEFAULT_DB):
                 skipped=skipped,
                 errors=errors,
                 indexed_chunks=indexed_chunks,
+                date_counts=[dict(row) for row in date_counts],
             )
         except Exception as exc:
             _job_log(job_id, "[HATA] " + str(exc))
