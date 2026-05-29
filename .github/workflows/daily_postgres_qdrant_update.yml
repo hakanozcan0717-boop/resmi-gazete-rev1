@@ -61,11 +61,23 @@ jobs:
           CRAWL_START: ${{ inputs.crawl_start }}
           CRAWL_END: ${{ inputs.crawl_end }}
         run: |
+          echo "CRAWL_DAYS=$CRAWL_DAYS"
+          echo "CRAWL_START=$CRAWL_START"
+          echo "CRAWL_END=$CRAWL_END"
           if [ -n "$CRAWL_START" ] && [ -n "$CRAWL_END" ]; then
             python main.py crawl --start "$CRAWL_START" --end "$CRAWL_END" --timeout 45 --retries 1 --max-request-seconds 90
           else
             python main.py crawl --days "$CRAWL_DAYS" --timeout 45 --retries 1 --max-request-seconds 90
           fi
+
+      - name: Cekilen aralikta kayit var mi kontrol et
+        if: ${{ inputs.crawl_start != '' && inputs.crawl_end != '' }}
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWL_START: ${{ inputs.crawl_start }}
+          CRAWL_END: ${{ inputs.crawl_end }}
+        run: |
+          python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date', ('$CRAWL_START', '$CRAWL_END')); print('Kontrol araligi:', '$CRAWL_START', '$CRAWL_END'); print('Gun sayisi:', len(rows)); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]; raise SystemExit(1 if len(rows) == 0 else 0)"
 
       - name: SQLite verilerini PostgreSQL'e aktar
         if: ${{ inputs.import_sqlite == 'true' }}
