@@ -110,6 +110,43 @@ def cmd_crawl(args) -> None:
         raise SystemExit(f"Crawl sırasında {errors} gün hata aldı.")
 
 
+def cmd_daily_update(args) -> None:
+    end = dt.date.today()
+    start = end - dt.timedelta(days=args.days - 1)
+    start_date = start.isoformat()
+    end_date = end.isoformat()
+
+    print(f"[DAILY] Tarih araligi: {start_date} - {end_date}")
+
+    crawl_args = type("Args", (), {
+        "db": args.db,
+        "data_dir": args.data_dir,
+        "timeout": args.timeout,
+        "sleep": args.sleep,
+        "retries": args.retries,
+        "max_request_seconds": args.max_request_seconds,
+        "days": None,
+        "start": start_date,
+        "end": end_date,
+        "debug": args.debug,
+        "fail_on_empty": args.fail_on_empty,
+        "fail_on_errors": False,
+        "empty_day_retries": args.empty_day_retries,
+        "empty_day_sleep": args.empty_day_sleep,
+    })()
+    cmd_crawl(crawl_args)
+
+    print(f"[DAILY] Qdrant indeksleme basliyor: {start_date} - {end_date}")
+    rag = RAGEngine(db_path=args.db, vector_db_path=args.vector_db)
+    count = rag.build_index(
+        chunk_size=args.chunk_size,
+        overlap=args.overlap,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    print(f"[DAILY] Qdrant indeksleme tamamlandi. Parca sayisi: {count}")
+
+
 def cmd_search(args) -> None:
     db = GazetteDB(args.db)
     results = db.search(args.query, limit=args.limit)

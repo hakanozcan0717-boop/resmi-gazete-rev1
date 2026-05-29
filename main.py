@@ -22,6 +22,7 @@ from config.settings import DEFAULT_DATA_DIR, DEFAULT_DB, DEFAULT_HOST, DEFAULT_
 from core.commands import (
     cmd_analyze,
     cmd_crawl,
+    cmd_daily_update,
     cmd_export,
     cmd_import_sqlite,
     cmd_rag_ask,
@@ -71,6 +72,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_crawl.add_argument("--empty-day-retries", type=int, default=0, help="Bir gün 0 belge dönerse kaç kez tekrar denensin?")
     p_crawl.add_argument("--empty-day-sleep", type=float, default=10.0, help="Boş gün tekrarları arasında bekleme saniyesi")
     p_crawl.set_defaults(func=cmd_crawl)
+
+    p_daily = sub.add_parser("daily-update", help="Son günleri indirir ve Qdrant RAG indeksini günceller.")
+    p_daily.add_argument("--days", type=int, default=2, help="Bugünden geriye kaç gün işlensin?")
+    p_daily.add_argument("--data-dir", default=DEFAULT_DATA_DIR, help="PDF/ham veri klasörü")
+    p_daily.add_argument("--timeout", type=int, default=90)
+    p_daily.add_argument("--retries", type=int, default=2, help="Her URL için deneme sayısı")
+    p_daily.add_argument("--max-request-seconds", type=int, default=240, help="Tek URL için toplam süre sınırı")
+    p_daily.add_argument("--sleep", type=float, default=1.5, help="İstekler arası bekleme saniyesi")
+    p_daily.add_argument("--empty-day-retries", type=int, default=2, help="Bir gün 0 belge dönerse kaç kez tekrar denensin?")
+    p_daily.add_argument("--empty-day-sleep", type=float, default=20.0, help="Boş gün tekrarları arasında bekleme saniyesi")
+    p_daily.add_argument("--fail-on-empty", action="store_true", help="Hiç belge bulunamazsa komutu hata ile bitir")
+    p_daily.add_argument("--debug", action="store_true")
+    p_daily.add_argument("--vector-db", default="vector_db")
+    p_daily.add_argument("--chunk-size", type=int, default=1000, help="Her metin parçasının yaklaşık karakter sayısı")
+    p_daily.add_argument("--overlap", type=int, default=150, help="Parçalar arası ortak karakter sayısı")
+    p_daily.set_defaults(func=cmd_daily_update)
 
     p_search = sub.add_parser("search", help="Veritabanında arama yapar.")
     p_search.add_argument("--query", required=True)
@@ -160,6 +177,17 @@ def validate_args(args: argparse.Namespace) -> None:
             end = parse_date(args.end)
             if start > end:
                 raise SystemExit("Başlangıç tarihi bitiş tarihinden büyük olamaz.")
+    elif args.command == "daily-update":
+        if args.days <= 0:
+            raise SystemExit("--days pozitif olmalıdır.")
+        if args.retries <= 0:
+            raise SystemExit("--retries pozitif olmalıdır.")
+        if args.max_request_seconds <= 0:
+            raise SystemExit("--max-request-seconds pozitif olmalıdır.")
+        if args.empty_day_retries < 0:
+            raise SystemExit("--empty-day-retries negatif olamaz.")
+        if args.empty_day_sleep < 0:
+            raise SystemExit("--empty-day-sleep negatif olamaz.")
     elif args.command == "import-sqlite":
         if args.limit is not None and args.limit <= 0:
             raise SystemExit("--limit pozitif olmalıdır.")
