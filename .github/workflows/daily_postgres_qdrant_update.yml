@@ -101,6 +101,22 @@ jobs:
             python main.py rag-index --days "$INDEX_DAYS"
           fi
 
+      - name: Secilen tarih araligi veritabaninda var mi
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWL_START: ${{ inputs.crawl_start }}
+          CRAWL_END: ${{ inputs.crawl_end }}
+          INDEX_START: ${{ inputs.index_start }}
+          INDEX_END: ${{ inputs.index_end }}
+        run: |
+          START_DATE="${CRAWL_START:-$INDEX_START}"
+          END_DATE="${CRAWL_END:-$INDEX_END}"
+          if [ -n "$START_DATE" ] && [ -n "$END_DATE" ]; then
+            python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items WHERE date >= ? AND date <= ? GROUP BY date ORDER BY date', ('$START_DATE', '$END_DATE')); print('Aralik:', '$START_DATE', '$END_DATE'); print('Gun sayisi:', len(rows)); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]"
+          else
+            python -c "from core.database import GazetteDB; db=GazetteDB(); rows=db._fetchall('SELECT date, COUNT(*) AS belge_sayisi FROM gazette_items GROUP BY date ORDER BY date DESC LIMIT 10'); print('Son 10 tarih:'); [print(str(r['date']) + ': ' + str(r['belge_sayisi'])) for r in rows]"
+          fi
+
       - name: Analiz raporu uret
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
