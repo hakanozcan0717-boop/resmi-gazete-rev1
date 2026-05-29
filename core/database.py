@@ -4,6 +4,7 @@ import csv
 import os
 import re
 import sqlite3
+import sys
 from typing import List, Optional, Tuple
 
 import psycopg2
@@ -168,8 +169,9 @@ class GazetteDB:
             self.conn.commit()
             return True
 
-        except Exception:
+        except Exception as exc:
             self.conn.rollback()
+            print(f"[DB INSERT HATA] {item.date} {item.item_url}: {exc}", file=sys.stderr)
             return False
 
     def log_crawl(self, start_date: str, end_date: str, inserted: int, errors: int, notes: str = "") -> None:

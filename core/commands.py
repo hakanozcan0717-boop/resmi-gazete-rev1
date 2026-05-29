@@ -60,13 +60,23 @@ def cmd_crawl(args) -> None:
 
     inserted = 0
     errors = 0
+    fetched_total = 0
+    skipped_total = 0
 
     for day in date_range(start, end):
         try:
             items = crawler.fetch_day(day)
+            fetched_total += len(items)
+            day_inserted = 0
+            day_skipped = 0
             for item in items:
                 if db.insert_item(item):
                     inserted += 1
+                    day_inserted += 1
+                else:
+                    skipped_total += 1
+                    day_skipped += 1
+            print(f"[GÜN ÖZET] {day}: bulunan={len(items)}, yeni={day_inserted}, atlanan/var_olan={day_skipped}")
         except KeyboardInterrupt:
             print("\n[İPTAL] Kullanıcı tarafından durduruldu.")
             break
@@ -76,8 +86,12 @@ def cmd_crawl(args) -> None:
             if args.debug:
                 traceback.print_exc()
 
-    db.log_crawl(start.isoformat(), end.isoformat(), inserted, errors)
-    print(f"\nTamamlandı. Yeni eklenen kayıt: {inserted}, hata: {errors}, toplam kayıt: {db.count_items()}")
+    notes = f"bulunan={fetched_total}, atlanan_var_olan={skipped_total}"
+    db.log_crawl(start.isoformat(), end.isoformat(), inserted, errors, notes=notes)
+    print(
+        f"\nTamamlandı. Bulunan kayıt: {fetched_total}, yeni eklenen kayıt: {inserted}, "
+        f"atlanan/var olan: {skipped_total}, hata: {errors}, toplam kayıt: {db.count_items()}"
+    )
 
 
 def cmd_search(args) -> None:
