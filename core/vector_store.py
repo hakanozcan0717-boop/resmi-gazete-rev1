@@ -10,6 +10,7 @@ Qdrant vektorleri saklar ve arama yapar.
 from __future__ import annotations
 
 import hashlib
+import datetime as dt
 import os
 from collections import Counter
 from typing import Dict, List
@@ -204,35 +205,49 @@ class VectorStore:
         ]
 
     def delete_year(self, year: int) -> Dict:
+        start_date = f"{year:04d}-01-01"
+        end_date = f"{year + 1:04d}-01-01"
+        result = self.delete_date_range(start_date, end_date)
+        result["year"] = year
+        return result
+
+    def delete_date_range(self, start_date: str, end_date: str) -> Dict:
         self._ensure_payload_indexes()
-        prefix = f"{year:04d}-"
-        rows = [row for row in self.date_counts() if row["date"].startswith(prefix)]
+        dates = self._date_values(start_date, end_date)
+        batch_count = 0
 
-        deleted_points = 0
-        deleted_dates = []
+        for start in range(0, len(dates), 32):
+            batch = dates[start:start + 32]
+            delete_filter = models.Filter(
+                must=[
+                    models.FieldCondition(
+                        key="date",
+                        match=models.MatchAny(any=batch),
+                    )
+                ]
+            )
 
-        for row in rows:
-            date = row["date"]
-            count = int(row["chunk_count"])
             self.qdrant.delete(
                 collection_name=self.collection_name,
-                points_selector=models.FilterSelector(
-                    filter=models.Filter(
-                        must=[
-                            models.FieldCondition(
-                                key="date",
-                                match=models.MatchValue(value=date),
-                            )
-                        ]
-                    )
-                ),
+                points_selector=models.FilterSelector(filter=delete_filter),
+                wait=True,
             )
-            deleted_points += count
-            deleted_dates.append({"date": date, "chunk_count": count})
+            batch_count += 1
 
         return {
-            "year": year,
-            "deleted_date_count": len(deleted_dates),
-            "deleted_point_count": deleted_points,
-            "deleted_dates": deleted_dates,
+            "start_date": start_date,
+            "end_date": end_date,
+            "date_value_count": len(dates),
+            "delete_batch_count": batch_count,
+            "deleted_by_filter": True,
         }
+
+    def _date_values(self, start_date: str, end_date: str) -> List[str]:
+        start = dt.datetime.strptime(start_date, "%Y-%m-%d").date()
+        end = dt.datetime.strptime(end_date, "%Y-%m-%d").date()
+        values = []
+        current = start
+        while current < end:
+            values.append(current.isoformat())
+            current += dt.timedelta(days=1)
+        return values

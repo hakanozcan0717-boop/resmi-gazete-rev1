@@ -51,6 +51,26 @@
 </div>
 
 <div class="card">
+    <h2>Tarih Araligi Sil</h2>
+    <p class="muted">Baslangic dahil, bitis haric siler. Ornek: 2025 icin 2025-01-01 / 2026-01-01.</p>
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="deleteStart">Baslangic</label>
+            <input id="deleteStart" type="date" value="2025-01-01">
+        </div>
+        <div class="form-row">
+            <label for="deleteEnd">Bitis</label>
+            <input id="deleteEnd" type="date" value="2026-01-01">
+        </div>
+    </div>
+    <div class="form-row">
+        <label for="deleteRangeConfirm">Onay</label>
+        <input id="deleteRangeConfirm" type="text" placeholder="DELETE 2025-01-01 2026-01-01">
+    </div>
+    <button type="button" onclick="deleteDateRange()" style="background:#dc2626;">Araligi Sil</button>
+</div>
+
+<div class="card">
     <h2>Durum</h2>
     <div id="status" class="muted">Henuz is baslatilmadi.</div>
     <div id="summary" style="margin:12px 0;"></div>
@@ -249,12 +269,59 @@ async function deleteYearData() {
             "PostgreSQL once: " + data.postgres_before,
             "PostgreSQL silinen: " + data.postgres_deleted,
             "PostgreSQL sonra: " + data.postgres_after,
-            "Qdrant silinen tarih: " + data.qdrant.deleted_date_count,
-            "Qdrant silinen parca: " + data.qdrant.deleted_point_count
+            "Qdrant filtre tarihi: " + (data.qdrant.date_value_count || 0),
+            "Qdrant silme batch: " + (data.qdrant.delete_batch_count || 0)
         ].join("\n");
         showStatus("Silme tamamlandi.");
     } catch (error) {
         showStatus("Silme istegi hatasi: " + error);
+    }
+}
+
+async function deleteDateRange() {
+    const token = document.getElementById("token").value.trim();
+    const start = document.getElementById("deleteStart").value.trim();
+    const end = document.getElementById("deleteEnd").value.trim();
+    const confirm = document.getElementById("deleteRangeConfirm").value.trim();
+
+    if (!token || !start || !end || !confirm) {
+        showStatus("Token, tarih araligi ve onay zorunlu.");
+        return;
+    }
+
+    if (!window.confirm(start + " / " + end + " araligi PostgreSQL ve Qdrant'tan silinecek. Devam edilsin mi?")) {
+        return;
+    }
+
+    showStatus("Aralik silme islemi basladi...");
+
+    try {
+        const response = await fetch("/admin/delete-range", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Admin-Token": token
+            },
+            body: JSON.stringify({ start: start, end: end, confirm: confirm })
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Aralik silme basarisiz: HTTP " + response.status + " - " + (data.error || "hata"));
+            return;
+        }
+
+        document.getElementById("logs").textContent = [
+            "PostgreSQL once: " + data.postgres_before,
+            "PostgreSQL silinen: " + data.postgres_deleted,
+            "PostgreSQL sonra: " + data.postgres_after,
+            "Qdrant filtre tarihi: " + (data.qdrant.date_value_count || 0),
+            "Qdrant silme batch: " + (data.qdrant.delete_batch_count || 0)
+        ].join("\n");
+        showStatus("Aralik silme tamamlandi.");
+    } catch (error) {
+        showStatus("Aralik silme istegi hatasi: " + error);
     }
 }
 </script>

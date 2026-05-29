@@ -358,4 +358,49 @@ def create_app(db_path: str = DEFAULT_DB):
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
+    @app.route("/admin/delete-range", methods=["POST"])
+    def admin_delete_range():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        start_date = str(request.form.get("start") or payload.get("start") or "").strip()
+        end_date = str(request.form.get("end") or payload.get("end") or "").strip()
+        confirm = str(request.form.get("confirm") or payload.get("confirm") or "").strip()
+
+        if not start_date or not end_date:
+            return jsonify({"error": "start ve end zorunlu; format YYYY-MM-DD"}), 400
+
+        try:
+            start = parse_date(start_date)
+            end = parse_date(end_date)
+            if start >= end:
+                return jsonify({"error": "start tarihi end tarihinden küçük olmalı"}), 400
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        expected_confirm = f"DELETE {start_date} {end_date}"
+        if confirm != expected_confirm:
+            return jsonify({"error": f"Onay için confirm alanına '{expected_confirm}' yazılmalı"}), 400
+
+        try:
+            job_db = GazetteDB(db_path)
+            before_count = job_db.count_items_for_date_range(start_date, end_date)
+            deleted_db = job_db.delete_items_for_date_range(start_date, end_date)
+
+            qdrant_deleted = VectorStore().delete_date_range(start_date, end_date)
+            after_count = job_db.count_items_for_date_range(start_date, end_date)
+
+            return jsonify({
+                "status": "completed",
+                "start": start_date,
+                "end": end_date,
+                "postgres_before": before_count,
+                "postgres_deleted": deleted_db,
+                "postgres_after": after_count,
+                "qdrant": qdrant_deleted,
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
     return app

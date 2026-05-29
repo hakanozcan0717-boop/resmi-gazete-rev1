@@ -324,16 +324,22 @@ class GazetteDB:
     def count_items_for_year(self, year: int) -> int:
         start = f"{year:04d}-01-01"
         end = f"{year + 1:04d}-01-01"
+        return self.count_items_for_date_range(start, end)
+
+    def count_items_for_date_range(self, start_date: str, end_date: str) -> int:
         row = self._fetchone(
             "SELECT COUNT(*) AS n FROM gazette_items WHERE date >= ? AND date < ?",
-            (start, end),
+            (start_date, end_date),
         )
         return int(row["n"] if self.backend == "postgres" else row[0])
 
     def delete_items_for_year(self, year: int) -> int:
         start = f"{year:04d}-01-01"
         end = f"{year + 1:04d}-01-01"
-        count = self.count_items_for_year(year)
+        return self.delete_items_for_date_range(start, end)
+
+    def delete_items_for_date_range(self, start_date: str, end_date: str) -> int:
+        count = self.count_items_for_date_range(start_date, end_date)
         cur = self.conn.cursor()
 
         if self.backend == "sqlite":
@@ -341,7 +347,7 @@ class GazetteDB:
                 row["id"]
                 for row in self._fetchall(
                     "SELECT id FROM gazette_items WHERE date >= ? AND date < ?",
-                    (start, end),
+                    (start_date, end_date),
                 )
             ]
             if ids:
@@ -352,9 +358,9 @@ class GazetteDB:
                     pass
 
         if self.backend == "postgres":
-            cur.execute("DELETE FROM gazette_items WHERE date >= %s AND date < %s", (start, end))
+            cur.execute("DELETE FROM gazette_items WHERE date >= %s AND date < %s", (start_date, end_date))
         else:
-            cur.execute("DELETE FROM gazette_items WHERE date >= ? AND date < ?", (start, end))
+            cur.execute("DELETE FROM gazette_items WHERE date >= ? AND date < ?", (start_date, end_date))
 
         self.conn.commit()
         return count
