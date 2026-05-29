@@ -321,6 +321,44 @@ class GazetteDB:
     def list_dates(self) -> List[Tuple[str, int]]:
         return self.stats_by_date()
 
+    def count_items_for_year(self, year: int) -> int:
+        start = f"{year:04d}-01-01"
+        end = f"{year + 1:04d}-01-01"
+        row = self._fetchone(
+            "SELECT COUNT(*) AS n FROM gazette_items WHERE date >= ? AND date < ?",
+            (start, end),
+        )
+        return int(row["n"] if self.backend == "postgres" else row[0])
+
+    def delete_items_for_year(self, year: int) -> int:
+        start = f"{year:04d}-01-01"
+        end = f"{year + 1:04d}-01-01"
+        count = self.count_items_for_year(year)
+        cur = self.conn.cursor()
+
+        if self.backend == "sqlite":
+            ids = [
+                row["id"]
+                for row in self._fetchall(
+                    "SELECT id FROM gazette_items WHERE date >= ? AND date < ?",
+                    (start, end),
+                )
+            ]
+            if ids:
+                placeholders = ",".join("?" for _ in ids)
+                try:
+                    cur.execute(f"DELETE FROM gazette_fts WHERE rowid IN ({placeholders})", ids)
+                except sqlite3.OperationalError:
+                    pass
+
+        if self.backend == "postgres":
+            cur.execute("DELETE FROM gazette_items WHERE date >= %s AND date < %s", (start, end))
+        else:
+            cur.execute("DELETE FROM gazette_items WHERE date >= ? AND date < ?", (start, end))
+
+        self.conn.commit()
+        return count
+
     def stats_by_institution(self, limit: int = 20) -> List[Tuple[str, int]]:
         rows = self._fetchall("""
         SELECT institution, COUNT(*) AS n

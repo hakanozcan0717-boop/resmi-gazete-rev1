@@ -190,3 +190,36 @@ class VectorStore:
             {"date": date, "chunk_count": count}
             for date, count in sorted(counts.items(), reverse=True)
         ]
+
+    def delete_year(self, year: int) -> Dict:
+        prefix = f"{year:04d}-"
+        rows = [row for row in self.date_counts() if row["date"].startswith(prefix)]
+
+        deleted_points = 0
+        deleted_dates = []
+
+        for row in rows:
+            date = row["date"]
+            count = int(row["chunk_count"])
+            self.qdrant.delete(
+                collection_name=self.collection_name,
+                points_selector=models.FilterSelector(
+                    filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="date",
+                                match=models.MatchValue(value=date),
+                            )
+                        ]
+                    )
+                ),
+            )
+            deleted_points += count
+            deleted_dates.append({"date": date, "chunk_count": count})
+
+        return {
+            "year": year,
+            "deleted_date_count": len(deleted_dates),
+            "deleted_point_count": deleted_points,
+            "deleted_dates": deleted_dates,
+        }

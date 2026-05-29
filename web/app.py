@@ -312,4 +312,50 @@ def create_app(db_path: str = DEFAULT_DB):
         except Exception as exc:
             return jsonify({"error": str(exc)}), 500
 
+    @app.route("/admin/delete-year", methods=["POST"])
+    def admin_delete_year():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        year_raw = str(request.form.get("year") or payload.get("year") or "").strip()
+        confirm = str(request.form.get("confirm") or payload.get("confirm") or "").strip()
+
+        if not year_raw.isdigit() or len(year_raw) != 4:
+            return jsonify({"error": "year 4 haneli olmalı"}), 400
+
+        year = int(year_raw)
+        expected_confirm = f"DELETE {year}"
+        if confirm != expected_confirm:
+            return jsonify({"error": f"Onay için confirm alanına '{expected_confirm}' yazılmalı"}), 400
+
+        try:
+            job_db = GazetteDB(db_path)
+            before_count = job_db.count_items_for_year(year)
+            deleted_db = job_db.delete_items_for_year(year)
+
+            qdrant_deleted = {"deleted_date_count": 0, "deleted_point_count": 0, "deleted_dates": []}
+            try:
+                qdrant_deleted = VectorStore().delete_year(year)
+            except Exception as exc:
+                return jsonify({
+                    "status": "partial",
+                    "year": year,
+                    "postgres_before": before_count,
+                    "postgres_deleted": deleted_db,
+                    "qdrant_error": str(exc),
+                }), 500
+
+            after_count = job_db.count_items_for_year(year)
+            return jsonify({
+                "status": "completed",
+                "year": year,
+                "postgres_before": before_count,
+                "postgres_deleted": deleted_db,
+                "postgres_after": after_count,
+                "qdrant": qdrant_deleted,
+            })
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 500
+
     return app

@@ -35,6 +35,22 @@
 </div>
 
 <div class="card">
+    <h2>Yil Verisini Sil</h2>
+    <p class="muted">Bu islem secilen yili hem PostgreSQL'den hem Qdrant'tan siler. Geri alma yoktur.</p>
+    <div class="form-grid">
+        <div class="form-row">
+            <label for="deleteYear">Yil</label>
+            <input id="deleteYear" type="text" value="2025">
+        </div>
+        <div class="form-row">
+            <label for="deleteConfirm">Onay</label>
+            <input id="deleteConfirm" type="text" placeholder="DELETE 2025">
+        </div>
+    </div>
+    <button type="button" onclick="deleteYearData()" style="background:#dc2626;">Yili Sil</button>
+</div>
+
+<div class="card">
     <h2>Durum</h2>
     <div id="status" class="muted">Henuz is baslatilmadi.</div>
     <div id="summary" style="margin:12px 0;"></div>
@@ -193,6 +209,52 @@ async function loadQdrantDates() {
         showStatus("Qdrant: " + data.date_count + " tarih, " + data.chunk_count + " parca");
     } catch (error) {
         showStatus("Qdrant tarihleri okunamadi: " + error);
+    }
+}
+
+async function deleteYearData() {
+    const token = document.getElementById("token").value.trim();
+    const year = document.getElementById("deleteYear").value.trim();
+    const confirm = document.getElementById("deleteConfirm").value.trim();
+
+    if (!token || !year || !confirm) {
+        showStatus("Token, yil ve onay zorunlu.");
+        return;
+    }
+
+    if (!window.confirm(year + " yılı PostgreSQL ve Qdrant verileri silinecek. Devam edilsin mi?")) {
+        return;
+    }
+
+    showStatus("Silme islemi basladi...");
+
+    try {
+        const response = await fetch("/admin/delete-year", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Admin-Token": token
+            },
+            body: JSON.stringify({ year: year, confirm: confirm })
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Silme basarisiz: HTTP " + response.status + " - " + (data.error || data.qdrant_error || "hata"));
+            return;
+        }
+
+        document.getElementById("logs").textContent = [
+            "PostgreSQL once: " + data.postgres_before,
+            "PostgreSQL silinen: " + data.postgres_deleted,
+            "PostgreSQL sonra: " + data.postgres_after,
+            "Qdrant silinen tarih: " + data.qdrant.deleted_date_count,
+            "Qdrant silinen parca: " + data.qdrant.deleted_point_count
+        ].join("\n");
+        showStatus("Silme tamamlandi.");
+    } catch (error) {
+        showStatus("Silme istegi hatasi: " + error);
     }
 }
 </script>
