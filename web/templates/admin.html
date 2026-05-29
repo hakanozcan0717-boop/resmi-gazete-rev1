@@ -68,7 +68,7 @@ function showOutput(data) {
 async function startCrawl() {
     const start = document.getElementById("start").value;
     const end = document.getElementById("end").value;
-    const token = document.getElementById("token").value;
+    const token = document.getElementById("token").value.trim();
     const shouldIndex = document.getElementById("index").checked;
 
     if (!start || !end || !token) {
@@ -92,7 +92,7 @@ async function startCrawl() {
         showOutput(data);
 
         if (!response.ok) {
-            showStatus("Baslatilamadi.");
+            showStatus("Baslatilamadi: HTTP " + response.status + " - " + (data.error || "hata"));
             return;
         }
 

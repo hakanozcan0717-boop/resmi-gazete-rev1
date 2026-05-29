@@ -34,7 +34,7 @@ def create_app(db_path: str = DEFAULT_DB):
         if not expected:
             return False
         supplied = request.headers.get("X-Admin-Token") or request.args.get("token") or request.form.get("token")
-        return supplied == expected
+        return (supplied or "").strip() == expected.strip()
 
     def _job_log(job_id: str, message: str) -> None:
         line = f"{dt.datetime.now().replace(microsecond=0).isoformat()} {message}"
