@@ -66,6 +66,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_crawl.add_argument("--max-request-seconds", type=int, default=120, help="Tek URL için toplam süre sınırı")
     p_crawl.add_argument("--sleep", type=float, default=0.6, help="İstekler arası bekleme saniyesi")
     p_crawl.add_argument("--debug", action="store_true")
+    p_crawl.add_argument("--fail-on-empty", action="store_true", help="Hiç belge bulunamazsa komutu hata ile bitir")
+    p_crawl.add_argument("--fail-on-errors", action="store_true", help="Gün bazlı hata varsa komutu hata ile bitir")
     p_crawl.set_defaults(func=cmd_crawl)
 
     p_search = sub.add_parser("search", help="Veritabanında arama yapar.")

@@ -93,6 +93,11 @@ def cmd_crawl(args) -> None:
         f"atlanan/var olan: {skipped_total}, hata: {errors}, toplam kayıt: {db.count_items()}"
     )
 
+    if args.fail_on_empty and fetched_total == 0:
+        raise SystemExit("Crawl hiçbir belge bulamadı; tarih aralığı, ağ erişimi veya kaynak HTML/PDF kontrol edilmeli.")
+    if args.fail_on_errors and errors > 0:
+        raise SystemExit(f"Crawl sırasında {errors} gün hata aldı.")
+
 
 def cmd_search(args) -> None:
     db = GazetteDB(args.db)
