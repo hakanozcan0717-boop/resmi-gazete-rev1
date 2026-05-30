@@ -3,6 +3,7 @@ name: Daily Resmi Gazete Render Trigger
 on:
   schedule:
     - cron: "30 5 * * *"
+    - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
       days:
@@ -17,6 +18,10 @@ on:
         description: "Bitis tarihi YYYY-MM-DD; bossa days kullanilir"
         required: false
         default: ""
+
+concurrency:
+  group: daily-resmi-gazete-render-trigger
+  cancel-in-progress: false
 
 jobs:
   trigger-render-update:
