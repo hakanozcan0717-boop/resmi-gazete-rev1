@@ -3,7 +3,7 @@ name: Daily Resmi Gazete Render Trigger
 on:
   schedule:
     - cron: "30 5 * * *"
-    - cron: "30 6 * * *"
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
       days:
