@@ -3,11 +3,6 @@
 {% block content %}
 <div class="card">
     <h2>RAG + LLM Soru-Cevap</h2>
-    <p class="muted">
-        Önce <code>python main.py rag-index</code> komutunu çalıştırmalısın.
-        Sonra burada Resmî Gazete verilerine doğal dille soru sorabilirsin.
-    </p>
-
     <form method="post">
         <input type="text" name="question" placeholder="Örn: İhale ile ilgili düzenlemeler nelerdir?" value="{{ question }}">
 
