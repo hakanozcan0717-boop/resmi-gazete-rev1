@@ -789,6 +789,13 @@ Metin:
             context = "İlgili temiz kaynak bulunamadı."
 
         prompt = f"""
+DETAY SEVIYESI:
+- Cevap orta detayli olsun; sadece tek cumlelik veya yuzeysel ozet verme.
+- Mumkunse "Genel ozet", "Kaynaklara gore ayrintilar" ve "Sonuc" bolumleriyle yaz.
+- Her kaynakta soruyla ilgili hangi duzenleme, karar, ilan veya hukmun yer aldigini ayri ayri belirt.
+- Ayni konuyu tekrarlayan kaynaklari birlestir; farkli tarih veya farkli hukum varsa ayri belirt.
+- Kaynaklarda olmayan bilgi, yorum, tahmin veya genel bilgi ekleme.
+
 Sen bir Resmî Gazete analiz asistanısın.
 
 Görevin:
