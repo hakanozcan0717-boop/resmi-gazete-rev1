@@ -36,22 +36,22 @@
 
 <div class="card">
     <h2>Tarih Araligi Sil</h2>
-    <p class="muted">Baslangic dahil, bitis haric siler. Ornek: 2025 icin 2025-01-01 / 2026-01-01.</p>
+    <p class="muted">Secilen baslangic ve bitis tarihleri dahil silinir. Tek gun silmek icin iki alana da ayni tarihi gir.</p>
     <div class="form-grid">
         <div class="form-row">
             <label for="deleteStart">Baslangic</label>
-            <input id="deleteStart" type="date" value="2025-01-01">
+            <input id="deleteStart" type="date">
         </div>
         <div class="form-row">
             <label for="deleteEnd">Bitis</label>
-            <input id="deleteEnd" type="date" value="2026-01-01">
+            <input id="deleteEnd" type="date">
         </div>
     </div>
     <div class="form-row">
         <label for="deleteRangeConfirm">Onay</label>
-        <input id="deleteRangeConfirm" type="text" placeholder="DELETE 2025-01-01 2026-01-01">
+        <input id="deleteRangeConfirm" type="text" placeholder="SIL">
     </div>
-    <button type="button" onclick="deleteDateRange()" style="background:#dc2626;">Araligi Sil</button>
+    <button type="button" onclick="deleteDateRange()" style="background:#dc2626;">Secili Tarihleri Sil</button>
 </div>
 
 <div class="card">
@@ -223,11 +223,21 @@ async function deleteDateRange() {
     const confirm = document.getElementById("deleteRangeConfirm").value.trim();
 
     if (!token || !start || !end || !confirm) {
-        showStatus("Token, tarih araligi ve onay zorunlu.");
+        showStatus("Token, tarih araligi ve onay zorunlu. Onay alanina SIL yaz.");
         return;
     }
 
-    if (!window.confirm(start + " / " + end + " araligi PostgreSQL ve Qdrant'tan silinecek. Devam edilsin mi?")) {
+    if (start > end) {
+        showStatus("Baslangic tarihi bitis tarihinden buyuk olamaz.");
+        return;
+    }
+
+    if (confirm !== "SIL") {
+        showStatus("Silme onayi icin onay alanina SIL yaz.");
+        return;
+    }
+
+    if (!window.confirm(start + " / " + end + " dahil PostgreSQL ve Qdrant'tan silinecek. Devam edilsin mi?")) {
         return;
     }
 

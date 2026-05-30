@@ -249,7 +249,7 @@ def create_app(db_path: str = DEFAULT_DB):
             start = parse_date(start_date)
             end = parse_date(end_date)
             if start > end:
-                return jsonify({"error": "start end tarihinden buyuk olamaz"}), 400
+                return jsonify({"error": "start tarihi end tarihinden buyuk olmamali"}), 400
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
 
@@ -328,27 +328,30 @@ def create_app(db_path: str = DEFAULT_DB):
         try:
             start = parse_date(start_date)
             end = parse_date(end_date)
-            if start >= end:
-                return jsonify({"error": "start tarihi end tarihinden küçük olmalı"}), 400
+            if start > end:
+                return jsonify({"error": "start tarihi end tarihinden buyuk olmamali"}), 400
         except Exception as exc:
             return jsonify({"error": str(exc)}), 400
 
         expected_confirm = f"DELETE {start_date} {end_date}"
-        if confirm != expected_confirm:
-            return jsonify({"error": f"Onay için confirm alanına '{expected_confirm}' yazılmalı"}), 400
+        if confirm not in {"SIL", expected_confirm}:
+            return jsonify({"error": "Onay icin confirm alanina 'SIL' yazilmali"}), 400
+
+        end_exclusive = (end + dt.timedelta(days=1)).isoformat()
 
         try:
             job_db = GazetteDB(db_path)
-            before_count = job_db.count_items_for_date_range(start_date, end_date)
-            deleted_db = job_db.delete_items_for_date_range(start_date, end_date)
+            before_count = job_db.count_items_for_date_range(start_date, end_exclusive)
+            deleted_db = job_db.delete_items_for_date_range(start_date, end_exclusive)
 
-            qdrant_deleted = VectorStore().delete_date_range(start_date, end_date)
-            after_count = job_db.count_items_for_date_range(start_date, end_date)
+            qdrant_deleted = VectorStore().delete_date_range(start_date, end_exclusive)
+            after_count = job_db.count_items_for_date_range(start_date, end_exclusive)
 
             return jsonify({
                 "status": "completed",
                 "start": start_date,
                 "end": end_date,
+                "end_exclusive": end_exclusive,
                 "postgres_before": before_count,
                 "postgres_deleted": deleted_db,
                 "postgres_after": after_count,
