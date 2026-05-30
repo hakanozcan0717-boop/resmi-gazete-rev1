@@ -234,7 +234,8 @@ def create_app(db_path: str = DEFAULT_DB):
                 try:
                     rag = RAGEngine(db_path=db_path, vector_db_path="vector_db")
                     if mode == "llm":
-                        answer = rag.answer_with_llm(question=question, top_k=5)
+                        sources = rag.prepare_sources(question=question, top_k=5)
+                        answer = rag.answer_with_llm(question=question, top_k=5, sources=sources)
                     else:
                         sources = rag.prepare_sources(question=question, top_k=10)
                 except Exception as exc:

@@ -811,11 +811,11 @@ CEVAP:
 
         return prompt.strip()
 
-    def answer_with_llm(self, question: str, top_k: int = 5, model: str = None) -> str:
+    def answer_with_llm(self, question: str, top_k: int = 5, model: str = None, sources: Optional[List[Dict]] = None) -> str:
         """
         RAG + LLM cevabı üretir.
         """
-        sources = self.prepare_sources(question, top_k=top_k)
+        sources = sources if sources is not None else self.prepare_sources(question, top_k=top_k)
         if not sources:
             return "Uygun kaynak bulunamadı."
 
