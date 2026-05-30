@@ -1,12 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <h2>Arama Sonuçları: {{ q }}</h2>
+    <h2>Arama Sonuclari: {{ q }}</h2>
+    {% if data_coverage.has_data %}
+        <p class="muted">
+            Bu arama {{ data_coverage.start }} - {{ data_coverage.end }} tarihleri arasindaki
+            {{ data_coverage.day_count }} Resmi Gazete tarihi ve {{ data_coverage.document_count }} belge icinde yapildi.
+        </p>
+    {% else %}
+        <p class="muted">Veritabaninda aranacak Resmi Gazete verisi yok.</p>
+    {% endif %}
+
     {% if not results %}
-        <p>Sonuç bulunamadı.</p>
+        <p>Sonuc bulunamadi.</p>
     {% else %}
         <table>
-            <tr><th>Tarih</th><th>Başlık</th><th>Özet</th><th>Skor</th></tr>
+            <tr><th>Tarih</th><th>Baslik</th><th>Ozet</th><th>Skor</th></tr>
             {% for r in results %}
             <tr>
                 <td>{{ r.date }}</td>

@@ -37,6 +37,7 @@
         .source-snippet { color: #4b5563; font-size: 14px; line-height: 1.55; margin: 8px 0 10px; }
         .source-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: #6b7280; font-size: 13px; }
         .source-number { background: #eff6ff; color: #1d4ed8; border-radius: 999px; padding: 3px 8px; font-weight: 700; }
+        .coverage-bar { margin-top: 10px; padding: 10px 12px; border: 1px solid #dbeafe; background: #eff6ff; color: #1e3a8a; border-radius: 8px; font-size: 14px; line-height: 1.45; }
         @media (max-width: 800px) { .grid { grid-template-columns: 1fr; } input[type=text] { width: 100%; margin-bottom: 8px; } }
     </style>
 </head>
@@ -57,6 +58,14 @@
             <a class="btn" href="/rag">RAG Soru-Cevap</a>
             <a class="btn" href="/admin">Veri Cek</a>
         </form>
+        <div class="coverage-bar">
+            {% if data_coverage.has_data %}
+                Arama kapsami: {{ data_coverage.start }} - {{ data_coverage.end }}
+                ({{ data_coverage.day_count }} tarih, {{ data_coverage.document_count }} belge).
+            {% else %}
+                Arama kapsami: Veritabaninda henuz Resmi Gazete verisi yok.
+            {% endif %}
+        </div>
     </div>
 
     {% block content %}{% endblock %}

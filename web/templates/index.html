@@ -1,18 +1,29 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="grid">
-    <div class="card"><h2>Toplam Kayıt</h2><p style="font-size:32px;">{{ total }}</p></div>
-    <div class="card"><h2>Örnek Komut</h2><pre>python main.py crawl --days 7</pre></div>
+    <div class="card">
+        <h2>Toplam Kayit</h2>
+        <p style="font-size:32px;">{{ total }}</p>
+    </div>
+    <div class="card">
+        <h2>Veri Kapsami</h2>
+        {% if data_coverage.has_data %}
+            <p style="font-size:24px; margin:8px 0;">{{ data_coverage.start }} - {{ data_coverage.end }}</p>
+            <p class="muted">{{ data_coverage.day_count }} tarih, {{ data_coverage.document_count }} belge</p>
+        {% else %}
+            <p class="muted">Veritabaninda henuz Resmi Gazete verisi yok.</p>
+        {% endif %}
+    </div>
 </div>
 <div class="card">
-    <h2>Son Kayıtlar</h2>
+    <h2>Son Kayitlar</h2>
     <table>
-        <tr><th>Tarih</th><th>Başlık</th><th>Kategori</th><th>Kurum</th></tr>
+        <tr><th>Tarih</th><th>Baslik</th><th>Kategori</th><th>Kurum</th></tr>
         {% for r in rows %}
         <tr>
             <td>{{ r["date"] }}</td>
             <td><a href="/item/{{ r['id'] }}">{{ r["title"] }}</a><br><span class="muted">{{ r["summary"] or "" }}</span></td>
-            <td><span class="tag">{{ r["category"] or "Diğer" }}</span></td>
+            <td><span class="tag">{{ r["category"] or "Diger" }}</span></td>
             <td>{{ r["institution"] or "-" }}</td>
         </tr>
         {% endfor %}

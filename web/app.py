@@ -154,6 +154,30 @@ def create_app(db_path: str = DEFAULT_DB):
         total = db.count_items()
         return render_template("index.html", app_name=APP_NAME, rows=rows, total=total)
 
+    @app.context_processor
+    def inject_data_coverage():
+        dates = db.list_dates()
+        if not dates:
+            return {
+                "data_coverage": {
+                    "has_data": False,
+                    "start": None,
+                    "end": None,
+                    "day_count": 0,
+                    "document_count": 0,
+                }
+            }
+
+        return {
+            "data_coverage": {
+                "has_data": True,
+                "start": dates[-1][0],
+                "end": dates[0][0],
+                "day_count": len(dates),
+                "document_count": sum(count for _, count in dates),
+            }
+        }
+
     @app.route("/search")
     def search_page():
         q = request.args.get("q", "").strip()
