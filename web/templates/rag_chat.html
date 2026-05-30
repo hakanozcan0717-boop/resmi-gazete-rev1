@@ -36,11 +36,16 @@
     <div class="source-list">
         {% for item in sources %}
         {% set meta = item["metadata"] %}
+        {% set similarity = (item.get("score", 0) * 100) %}
         <div class="source-item">
             <div class="source-meta">
                 <span class="source-number">{{ loop.index }}</span>
                 <span>{{ meta["date"] }}</span>
                 <span class="tag">{{ meta["category"] }}</span>
+                <span class="tag">Benzerlik: {{ "%.1f"|format(similarity) }}%</span>
+                {% if item.get("hybrid_score") is not none %}
+                    <span class="tag">Alaka skoru: {{ item.get("hybrid_score") }}</span>
+                {% endif %}
             </div>
             <div class="source-title"><strong>{{ meta["title"] }}</strong></div>
             {% if meta["snippet"] %}
