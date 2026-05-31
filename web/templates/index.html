@@ -22,7 +22,7 @@
         {% for r in rows %}
         <tr>
             <td>{{ r["date"] }}</td>
-            <td><a href="/item/{{ r['id'] }}">{{ r["title"] }}</a><br><span class="muted">{{ r["summary"] or "" }}</span></td>
+            <td><a href="/item/{{ r['id'] }}">{{ r["title"] | clean_text }}</a><br><span class="muted">{{ r["summary"] | clean_text }}</span></td>
             <td><span class="tag">{{ r["category"] or "Diger" }}</span></td>
             <td>{{ r["institution"] or "-" }}</td>
         </tr>

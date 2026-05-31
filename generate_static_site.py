@@ -6,6 +6,7 @@ from pathlib import Path
 
 from core.database import GazetteDB
 from core.analyzer import GazetteAnalyzer
+from core.utils import clean_extracted_text
 
 
 OUTPUT_DIR = Path("static_site")
@@ -16,7 +17,7 @@ def escape(value):
 
 
 def short(value, length=280):
-    value = str(value or "").strip()
+    value = clean_extracted_text(str(value or "")).strip()
     if len(value) <= length:
         return value
     return value[: length - 3].rstrip() + "..."
@@ -146,11 +147,11 @@ def generate_index(db):
             <tr>
                 <td>{escape(r["date"])}</td>
                 <td>
-                    <strong>{escape(r["title"])}</strong><br>
+                    <strong>{escape(clean_extracted_text(r["title"]))}</strong><br>
                     <span class="muted">{escape(short(r["summary"], 260))}</span>
                 </td>
                 <td><span class="tag">{escape(r["category"] or "Diğer")}</span></td>
-                <td>{escape(r["institution"] or "-")}</td>
+                <td>{escape(clean_extracted_text(r["institution"] or "-"))}</td>
                 <td><a href="{escape(r["item_url"])}" target="_blank">Aç</a></td>
             </tr>
         """

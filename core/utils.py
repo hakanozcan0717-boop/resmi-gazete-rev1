@@ -70,6 +70,68 @@ def repair_mojibake(text: str) -> str:
 
     return min(candidates, key=penalty)
 
+def _is_garbled_segment(text: str) -> bool:
+    if not text:
+        return False
+
+    length = len(text)
+    control_count = sum(1 for char in text if ord(char) < 32 and char not in "\n\r\t")
+    if length >= 40 and control_count / length > 0.01:
+        return True
+
+    alpha_count = sum(1 for char in text if char.isalpha())
+    vowel_count = sum(1 for char in text.lower() if char in "aeıioöuüâîû")
+    digit_count = sum(1 for char in text if char.isdigit())
+    symbol_count = sum(1 for char in text if not char.isalnum() and not char.isspace())
+    if length <= 3:
+        return True
+    if length < 8 and symbol_count > 0:
+        return True
+    if length < 12 and symbol_count > 0 and digit_count > 0:
+        return True
+    if length < 20 and alpha_count <= 3 and symbol_count >= alpha_count:
+        return True
+    if length < 20 and symbol_count >= 3 and " " not in text:
+        return True
+    if alpha_count == 0 and symbol_count > 0:
+        return True
+    if length >= 8 and alpha_count and vowel_count / alpha_count < 0.15 and symbol_count > 0:
+        return True
+    if length >= 20 and alpha_count / length < 0.15 and symbol_count / length > 0.10:
+        return True
+    return length >= 60 and alpha_count / length < 0.25 and symbol_count / length > 0.20
+
+def remove_garbled_segments(text: str) -> str:
+    """Drop PDF font-encoding garbage while preserving readable extracted text."""
+    if not text:
+        return ""
+
+    cleaned_lines = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+
+        first_control = next(
+            (index for index, char in enumerate(line) if ord(char) < 32 and char not in "\n\r\t"),
+            None,
+        )
+        if first_control is not None:
+            prefix = line[:first_control].strip(" #!%$&*+-/:;=?@\\^_`|~")
+            if len(prefix) >= 25 and any(char.isalpha() for char in prefix):
+                line = prefix
+            else:
+                continue
+
+        line = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]+", " ", line)
+        line = re.sub(r"\s[#%$&*+/:;<=>?@\\^_`|~]{4,}.*$", "", line).strip()
+
+        if _is_garbled_segment(line):
+            continue
+        cleaned_lines.append(line)
+
+    return "\n".join(cleaned_lines).strip()
+
 def strip_html_fallback(raw_html: str) -> str:
     raw_html = re.sub(r"(?is)<script.*?>.*?</script>", " ", raw_html)
     raw_html = re.sub(r"(?is)<style.*?>.*?</style>", " ", raw_html)
@@ -151,6 +213,7 @@ def clean_extracted_text(text: str) -> str:
     """
 
     text = repair_mojibake(text or "")
+    text = remove_garbled_segments(text)
 
     # Bozuk kodlama ihtimalleri
     replacements = {

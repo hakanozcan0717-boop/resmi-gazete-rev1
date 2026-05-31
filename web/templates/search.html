@@ -19,8 +19,8 @@
             {% for r in results %}
             <tr>
                 <td>{{ r.date }}</td>
-                <td><a href="/item/{{ r.id }}">{{ r.title }}</a><br><span class="tag">{{ r.category }}</span></td>
-                <td>{{ r.snippet }}</td>
+                <td><a href="/item/{{ r.id }}">{{ r.title | clean_text }}</a><br><span class="tag">{{ r.category }}</span></td>
+                <td>{{ r.snippet | clean_text }}</td>
                 <td>{{ "%.2f"|format(r.score) }}</td>
             </tr>
             {% endfor %}

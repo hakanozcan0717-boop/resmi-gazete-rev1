@@ -4,19 +4,19 @@
 <div class="card"><h2>Kayıt bulunamadı.</h2></div>
 {% else %}
 <div class="card">
-    <h2>{{ row["title"] }}</h2>
-    <p><span class="tag">{{ row["date"] }}</span><span class="tag">{{ row["category"] or "Diğer" }}</span><span class="tag">{{ row["institution"] or "-" }}</span></p>
+    <h2>{{ row["title"] | clean_text }}</h2>
+    <p><span class="tag">{{ row["date"] }}</span><span class="tag">{{ row["category"] or "Diğer" }}</span><span class="tag">{{ row["institution"] | clean_text or "-" }}</span></p>
     <p><a href="{{ row['item_url'] }}" target="_blank">Resmî kaynak bağlantısı</a></p>
-    <h3>Özet</h3><p>{{ row["summary"] or "-" }}</p>
+    <h3>Özet</h3><p>{{ row["summary"] | clean_text or "-" }}</p>
     <h3>Anahtar Kelimeler</h3>
     <p>{% for word, count in keywords %}<span class="tag">{{ word }}: {{ count }}</span>{% endfor %}</p>
     <h3>Benzer Belgeler</h3>
     {% if similar and similar[0].error is defined %}
         <p>{{ similar[0].error }}</p>
     {% else %}
-        <ul>{% for s in similar %}<li>{{ s.similarity }} - <a href="/item/{{ s.id }}">{{ s.title }}</a></li>{% endfor %}</ul>
+        <ul>{% for s in similar %}<li>{{ s.similarity }} - <a href="/item/{{ s.id }}">{{ s.title | clean_text }}</a></li>{% endfor %}</ul>
     {% endif %}
-    <h3>Tam Metin</h3><pre>{{ row["content"][:30000] }}</pre>
+    <h3>Tam Metin</h3><pre>{{ ((row["content"] or "") | clean_text)[:30000] }}</pre>
 </div>
 {% endif %}
 {% endblock %}

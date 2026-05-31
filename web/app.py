@@ -20,7 +20,7 @@ from core.analyzer import GazetteAnalyzer
 from core.crawler import OfficialGazetteCrawler
 from core.database import GazetteDB
 from core.rag import RAGEngine
-from core.utils import date_range, parse_date
+from core.utils import clean_extracted_text, date_range, parse_date
 from core.vector_store import VectorStore
 
 
@@ -31,6 +31,7 @@ LATEST_ADMIN_JOB_ID = None
 
 def create_app(db_path: str = DEFAULT_DB):
     app = Flask(__name__)
+    app.jinja_env.filters["clean_text"] = clean_extracted_text
     db = GazetteDB(db_path)
     admin_jobs = ADMIN_JOBS
     admin_jobs_lock = ADMIN_JOBS_LOCK
