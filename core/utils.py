@@ -40,10 +40,35 @@ def safe_filename(text: str, max_len: int = 120) -> str:
 
 def clean_whitespace(text: str) -> str:
     text = html.unescape(text or "").replace("\u00a0", " ")
+    text = repair_mojibake(text)
     text = re.sub(r"\r\n|\r", "\n", text)
     text = re.sub(r"[ \t]+", " ", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
+
+def repair_mojibake(text: str) -> str:
+    """Repair common UTF-8-as-Latin-1/CP1252 mojibake without touching clean text."""
+    if not text:
+        return ""
+
+    markers = ("Ã", "Ä", "Å", "Â", "â€", "â€“", "â€”", "â€™", "â€œ", "â€�")
+    if not any(marker in text for marker in markers):
+        return text
+
+    candidates = [text]
+    for encoding in ("latin-1", "cp1252"):
+        try:
+            candidates.append(text.encode(encoding).decode("utf-8"))
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+
+    def penalty(value: str) -> int:
+        mojibake_hits = sum(value.count(marker) for marker in markers)
+        replacement_hits = value.count("\ufffd")
+        control_hits = sum(1 for char in value if ord(char) < 32 and char not in "\n\r\t")
+        return mojibake_hits * 10 + replacement_hits * 20 + control_hits
+
+    return min(candidates, key=penalty)
 
 def strip_html_fallback(raw_html: str) -> str:
     raw_html = re.sub(r"(?is)<script.*?>.*?</script>", " ", raw_html)
@@ -125,7 +150,7 @@ def clean_extracted_text(text: str) -> str:
     - gereksiz satır kırılımları
     """
 
-    text = text or ""
+    text = repair_mojibake(text or "")
 
     # Bozuk kodlama ihtimalleri
     replacements = {
