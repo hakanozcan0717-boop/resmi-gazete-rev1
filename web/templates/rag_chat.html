@@ -47,9 +47,9 @@
                     <span class="tag">Alaka skoru: {{ item.get("hybrid_score") }}</span>
                 {% endif %}
             </div>
-            <div class="source-title"><strong>{{ meta["title"] }}</strong></div>
+            <div class="source-title"><strong>{{ meta["title"] | clean_text }}</strong></div>
             {% if meta["snippet"] %}
-                <div class="source-snippet">{{ meta["snippet"] }}</div>
+                <div class="source-snippet">{{ meta["snippet"] | clean_text }}</div>
             {% endif %}
             <a href="{{ meta['item_url'] }}" target="_blank" rel="noopener">Kaynağı aç</a>
         </div>

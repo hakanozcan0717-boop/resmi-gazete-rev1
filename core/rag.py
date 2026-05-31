@@ -22,6 +22,7 @@ import unicodedata
 from typing import Dict, List, Optional
 
 from core.database import GazetteDB
+from core.utils import clean_extracted_text
 from core.vector_store import VectorStore
 
 try:
@@ -449,11 +450,14 @@ class RAGEngine:
         )
 
     def _clean_extracted_title(self, title: str) -> str:
+        title = clean_extracted_text(title)
         title = re.split(r"\s+MADDE\s+\d+", title, maxsplit=1)[0]
         title = re.split(r"\s+Yürürlük\s*$", title, maxsplit=1)[0]
         return title.strip(" -–\t,;:")
 
     def _extract_better_title(self, title: str, text: str, intent: str = "genel") -> str:
+        title = clean_extracted_text(title)
+        text = clean_extracted_text(text)
         if title and not self._is_weak_title(title):
             return title
 
@@ -523,11 +527,12 @@ class RAGEngine:
 
     def _clean_source_item(self, item: Dict, intent: str) -> Optional[Dict]:
         metadata = item.get("metadata", {})
-        title = self._extract_better_title(metadata.get("title", "") or "", item.get("text", ""), intent)
+        text = clean_extracted_text(item.get("text", ""))
+        title = self._extract_better_title(metadata.get("title", "") or "", text, intent)
         date = metadata.get("date", "-") or "-"
-        category = metadata.get("category", "-") or "-"
+        category = clean_extracted_text(metadata.get("category", "-") or "-")
         url = metadata.get("item_url", "-") or "-"
-        snippet = self._source_snippet(item.get("text", ""))
+        snippet = self._source_snippet(text)
 
         normalized_title = self._normalize_text(title)
         normalized_category = self._normalize_text(category)
@@ -538,6 +543,7 @@ class RAGEngine:
             return None
 
         cleaned = dict(item)
+        cleaned["text"] = text
         cleaned["metadata"] = {
             **metadata,
             "title": title,
@@ -549,6 +555,7 @@ class RAGEngine:
         return cleaned
 
     def _source_snippet(self, text: str, limit: int = 420) -> str:
+        text = clean_extracted_text(text)
         text = re.sub(r"\s+", " ", text or "").strip()
         text = re.sub(r"^(MADDE\s+\d+[-–.]?\s*)", "", text, flags=re.I).strip()
         if len(text) <= limit:

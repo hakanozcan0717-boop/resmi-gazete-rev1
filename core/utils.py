@@ -82,24 +82,28 @@ def _is_garbled_segment(text: str) -> bool:
     alpha_count = sum(1 for char in text if char.isalpha())
     vowel_count = sum(1 for char in text.lower() if char in "aeıioöuüâîû")
     digit_count = sum(1 for char in text if char.isdigit())
+    box_count = text.count("\u25a1") + text.count("\ufffd")
     symbol_count = sum(1 for char in text if not char.isalnum() and not char.isspace())
+    noisy_symbol_count = symbol_count + box_count
+    if box_count >= 3:
+        return True
     if length <= 3:
         return True
-    if length < 8 and symbol_count > 0:
+    if length < 8 and noisy_symbol_count > 0:
         return True
-    if length < 12 and symbol_count > 0 and digit_count > 0:
+    if length < 12 and noisy_symbol_count > 0 and digit_count > 0:
         return True
-    if length < 20 and alpha_count <= 3 and symbol_count >= alpha_count:
+    if length < 20 and alpha_count <= 3 and noisy_symbol_count >= alpha_count:
         return True
-    if length < 20 and symbol_count >= 3 and " " not in text:
+    if length < 20 and noisy_symbol_count >= 3 and " " not in text:
         return True
-    if alpha_count == 0 and symbol_count > 0:
+    if alpha_count == 0 and noisy_symbol_count > 0:
         return True
-    if length >= 8 and alpha_count and vowel_count / alpha_count < 0.15 and symbol_count > 0:
+    if length >= 8 and alpha_count and vowel_count / alpha_count < 0.15 and noisy_symbol_count > 0:
         return True
-    if length >= 20 and alpha_count / length < 0.15 and symbol_count / length > 0.10:
+    if length >= 20 and alpha_count / length < 0.15 and noisy_symbol_count / length > 0.10:
         return True
-    return length >= 60 and alpha_count / length < 0.25 and symbol_count / length > 0.20
+    return length >= 60 and alpha_count / length < 0.25 and noisy_symbol_count / length > 0.20
 
 def remove_garbled_segments(text: str) -> str:
     """Drop PDF font-encoding garbage while preserving readable extracted text."""
@@ -123,7 +127,13 @@ def remove_garbled_segments(text: str) -> str:
             else:
                 continue
 
+        noisy_tail = re.search(r"\s[!\"#$%&'*+/:;<=>?@\\^_`|~\u25a1\ufffd]{2,}", line)
+        if noisy_tail:
+            prefix = line[:noisy_tail.start()].strip(" #!%$&*+-/:;=?@\\^_`|~")
+            line = prefix if len(prefix) >= 25 and any(char.isalpha() for char in prefix) else line
+
         line = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]+", " ", line)
+        line = re.sub(r"[\u25a1\ufffd]+", " ", line)
         line = re.sub(r"\s[#%$&*+/:;<=>?@\\^_`|~]{4,}.*$", "", line).strip()
 
         if _is_garbled_segment(line):
