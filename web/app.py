@@ -239,6 +239,8 @@ def create_app(db_path: str = DEFAULT_DB):
                         answer = rag.answer_with_llm(question=question, top_k=5, sources=sources)
                     else:
                         sources = rag.prepare_sources(question=question, top_k=10)
+                        if rag.is_structured_answer_request(question):
+                            answer = rag.answer_without_llm(question=question, top_k=10)
                 except Exception as exc:
                     error = str(exc)
 

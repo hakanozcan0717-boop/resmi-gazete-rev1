@@ -126,7 +126,8 @@ class RAGEngine:
             "ile", "ilgili", "olan", "olanlari", "seyleri", "getir",
             "listele", "nelerdir", "nedir", "hakkinda", "bana",
             "kaynaklara", "gore", "ozetle", "resmi", "gazete",
-            "var", "hangi", "nedir", "ne"
+            "var", "hangi", "nedir", "ne", "kurum", "kuruma",
+            "kurumlara", "kim", "yapilan", "yapılan"
         }
 
         return [t for t in terms if len(t) > 2 and t not in stop]
@@ -342,6 +343,19 @@ class RAGEngine:
         ]
         return any(term in q for term in bare_listing_terms)
 
+    def is_structured_answer_request(self, question: str) -> bool:
+        return self._is_listing_request(question) or self._is_appointment_assignment_request(question)
+
+    def _is_appointment_assignment_request(self, question: str) -> bool:
+        q = self._normalize_text(question)
+        if "atama" not in q and "atan" not in q:
+            return False
+        detail_words = [
+            "kurum", "kuruma", "kurumlara", "kim", "kime", "hangi",
+            "gorev", "goreve", "liste", "listele", "goster"
+        ]
+        return any(word in q for word in detail_words)
+
     def _meaningful_question_terms(self, question: str, intent: str = "genel") -> List[str]:
         q = self._normalize_text(question)
         terms = re.findall(r"[a-z0-9]+", q)
@@ -351,7 +365,8 @@ class RAGEngine:
             "nelerdir", "kaynaklari", "kaynaklar", "ilgili", "hakkinda",
             "resmi", "gazete", "kararlari", "kararlar", "kanunlari",
             "yonetmelikleri", "tebligleri", "ihaleleri", "atamalari",
-            "atamalar",
+            "atamalar", "kurum", "kuruma", "kurumlara", "kim",
+            "yapilan", "yapılan",
         }
         output = []
         for term in terms:
@@ -610,6 +625,9 @@ class RAGEngine:
         if not results:
             return "\n".join(lines + ["Uygun kaynak bulunamadı."])
 
+        if self._is_appointment_assignment_request(question):
+            return self._format_appointment_assignments(question, results)
+
         lines.append("Bulunan kaynaklar:")
         lines.append("")
 
@@ -625,6 +643,142 @@ class RAGEngine:
             lines.append(f"   Kaynak: {url}")
             lines.append("")
 
+        return "\n".join(lines).strip()
+
+    def _extract_appointment_assignments(self, results: List[Dict]) -> List[Dict]:
+        rows = []
+        seen = set()
+
+        for item in results:
+            metadata = item.get("metadata", {})
+            text = clean_extracted_text(item.get("text", ""))
+            decision = self._decision_number(metadata.get("title", "") + " " + text)
+
+            for sentence in self._appointment_sentences(text):
+                parsed = self._parse_appointment_sentence(sentence)
+                if not parsed:
+                    continue
+                person, position = parsed
+                if self._looks_like_bad_assignment(person, position):
+                    continue
+
+                key = (metadata.get("date", ""), decision, person.lower(), position.lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                rows.append({
+                    "date": metadata.get("date", "-") or "-",
+                    "decision": decision,
+                    "person": person,
+                    "position": position,
+                    "institution": self._institution_from_position(position),
+                    "source": metadata.get("item_url", "-") or "-",
+                })
+
+        return rows
+
+    def _appointment_sentences(self, text: str) -> List[str]:
+        text = re.sub(r"\s+", " ", text or "")
+        candidates = re.split(r"(?<=[.!?])\s+|(?=Karar:\s*\d{4}/\d+)", text)
+        return [part.strip() for part in candidates if "atanmıştır" in part.lower()]
+
+    def _parse_appointment_sentence(self, sentence: str) -> Optional[tuple[str, str]]:
+        before = re.split(r"\batanmıştır\b", sentence, maxsplit=1, flags=re.I)[0]
+        before = re.sub(r"^.*?Karar\s*:\s*\d{4}/\d+\s*", "", before, flags=re.I)
+        before = re.sub(r"^.*?Cumhurbaşkanlığından\s*:?\s*", "", before, flags=re.I)
+        before = self._clean_assignment_value(before)
+        if not before:
+            return None
+
+        words = before.split()
+        if len(words) < 3:
+            return None
+
+        person_words = []
+        for word in reversed(words):
+            clean = word.strip(" ,;:.()[]")
+            if not clean:
+                continue
+            normalized = self._normalize_text(clean)
+            if normalized in {"dr", "prof", "doc", "av", "muh"}:
+                person_words.append(clean)
+                continue
+            if clean[:1].isupper() and not clean.isupper() and not clean.endswith(("lığına", "liğine", "lüğüne", "sine", "ına", "ine", "una", "üne")):
+                person_words.append(clean)
+                if len(person_words) >= 5:
+                    break
+                continue
+            break
+
+        person_words = list(reversed(person_words))
+        if len(person_words) < 2:
+            return None
+
+        person = self._clean_assignment_value(" ".join(person_words))
+        position = self._clean_assignment_value(" ".join(words[: -len(person_words)]))
+        position = re.sub(r"^(?:açık bulunan|boş bulunan)\s+", "", position, flags=re.I)
+        if not position:
+            return None
+        return person, position
+
+    def _clean_assignment_value(self, value: str) -> str:
+        value = clean_extracted_text(value or "")
+        value = re.sub(r"\s+", " ", value)
+        value = value.strip(" -–—,;:.")
+        return value
+
+    def _looks_like_bad_assignment(self, person: str, position: str) -> bool:
+        joined = f"{person} {position}"
+        if any(char in joined for char in "\ufffd\u25a1"):
+            return True
+        if len(person.split()) > 8 or len(position) < 8:
+            return True
+        normalized_person = self._normalize_text(person)
+        bad_person_terms = {"karar", "resmi", "gazete", "cumhurbaskani", "madde"}
+        return any(term in normalized_person for term in bad_person_terms)
+
+    def _institution_from_position(self, position: str) -> str:
+        value = re.sub(
+            r"\b(?:açık bulunan|bos bulunan|boş bulunan|görevine|kadrosuna)\b",
+            " ",
+            position,
+            flags=re.I,
+        )
+        value = re.sub(r"\s+", " ", value).strip(" ,")
+        for suffix in [" Bakanlığı", " Başkanlığı", " Genel Müdürlüğü", " Müdürlüğü", " Üniversitesi", " Valiliği"]:
+            idx = value.find(suffix)
+            if idx >= 0:
+                return value[:idx + len(suffix)].strip(" ,")
+        return value
+
+    def _decision_number(self, text: str) -> str:
+        match = re.search(r"Karar\s*:\s*(\d{4}/\d+)", text or "", re.I)
+        return match.group(1) if match else "-"
+
+    def _format_appointment_assignments(self, question: str, results: List[Dict]) -> str:
+        rows = self._extract_appointment_assignments(results)
+        lines = [f"Soru: {question}", ""]
+
+        if not rows:
+            lines.extend([
+                "Atama kaynakları bulundu; ancak bu kaynak metinlerinde kişi/kurum satırları ayrıştırılabilir biçimde yok.",
+                "Bu genelde ilgili Resmî Gazete PDF'inin metin katmanının bozuk çıkmasından kaynaklanır.",
+                "",
+                "Bulunan kaynaklar:",
+            ])
+            for item_no, item in enumerate(results, start=1):
+                metadata = item.get("metadata", {})
+                lines.append(f"{item_no}. [{metadata.get('date', '-')}] {metadata.get('title', '-')}")
+                lines.append(f"   Kaynak: {metadata.get('item_url', '-')}")
+            return "\n".join(lines).strip()
+
+        lines.append("| Tarih | Karar | Kişi | Kurum/Görev | Kaynak |")
+        lines.append("|---|---|---|---|---|")
+        for row in rows:
+            lines.append(
+                f"| {row['date']} | {row['decision']} | {row['person']} | "
+                f"{row['position']} | {row['source']} |"
+            )
         return "\n".join(lines).strip()
 
     def _rerank_and_filter_results(self, question: str, results: List[Dict], top_k: int = 5) -> List[Dict]:
@@ -726,7 +880,7 @@ class RAGEngine:
         """
         LLM bağlamadan kaynaklı cevap taslağı üretir.
         """
-        is_listing = self._is_listing_request(question)
+        is_listing = self.is_structured_answer_request(question)
         result_limit = max(top_k, 10) if is_listing else top_k
         results = self.prepare_sources(question, top_k=result_limit)
 
@@ -807,6 +961,8 @@ Sen bir Resmî Gazete analiz asistanısın.
 
 Görevin:
 - Aşağıdaki temizlenmiş kaynaklardan kısa ve anlaşılır bir özet çıkar.
+- Soru atamalarla ilgiliyse cevabı tablo olarak ver: Tarih | Karar | Kişi | Atandığı kurum/görev | Kaynak.
+- Atama tablosunda sadece kaynakta açıkça görünen kişi ve kurum/görev çiftlerini yaz; kaynakta kişi adı veya kurum/görev yoksa "Kaynakta ayrıştırılabilir kişi/kurum bilgisi yok." de.
 - Her önemli bulguyu ilgili kaynak başlığı, tarih veya kaynak numarasıyla ilişkilendir.
 - Kaynaklarda olmayan bilgi, yorum, tahmin veya genel bilgi ekleme.
 - Kaynaklar kullanıcının sorusuna cevap vermiyorsa sadece "Uygun kaynak bulunamadı." de.
