@@ -989,6 +989,9 @@ CEVAP:
         if not sources:
             return "Uygun kaynak bulunamadı."
 
+        if self._is_appointment_assignment_request(question):
+            return self._format_appointment_assignments(question, sources)
+
         if LLMClient is None:
             raise RuntimeError("LLMClient yüklenemedi. core/llm_client.py dosyasını ve openai paketini kontrol et.")
 
