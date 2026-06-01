@@ -97,9 +97,11 @@ class OfficialGazetteCrawler:
             if status != 200 or not raw_item:
                 continue
             if item_url.lower().endswith(".pdf") or "pdf" in ctype.lower():
-                item = self._build_companion_html_item(day, html_url, item_url, link_title)
-                if not item:
-                    item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title)
+                item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title)
+                if item and self._needs_html_fallback(item.content):
+                    html_item = self._build_companion_html_item(day, html_url, item_url, link_title)
+                    if html_item:
+                        item = html_item
             else:
                 item_html = self._decode_bytes(raw_item)
                 text = self._html_to_text(item_html)
@@ -193,9 +195,10 @@ class OfficialGazetteCrawler:
         if pymupdf_text:
             candidates.append(("pymupdf", pymupdf_text))
 
-        pypdf_text = self._extract_pdf_text_pypdf(pdf_path)
-        if pypdf_text:
-            candidates.append(("pypdf", pypdf_text))
+        if not self._is_good_pdf_text(pymupdf_text):
+            pypdf_text = self._extract_pdf_text_pypdf(pdf_path)
+            if pypdf_text:
+                candidates.append(("pypdf", pypdf_text))
 
         if candidates:
             extractor_name, text = max(candidates, key=lambda item: self._pdf_text_quality_score(item[1]))
@@ -274,6 +277,27 @@ class OfficialGazetteCrawler:
             - noisy * 5
             - control * 50
         )
+
+    def _is_good_pdf_text(self, text: str) -> bool:
+        cleaned = clean_extracted_text(text or "")
+        if len(cleaned) < 300:
+            return False
+
+        alpha = sum(1 for char in cleaned if char.isalpha())
+        noisy = sum(1 for char in cleaned if char in "#$%&*<=>?@[\\]^_`{|}~\ufffd\u25a1")
+        if alpha < 180:
+            return False
+
+        return noisy / max(len(cleaned), 1) < 0.08 and self._pdf_text_quality_score(cleaned) >= 800
+
+    def _needs_html_fallback(self, text: str) -> bool:
+        cleaned = clean_extracted_text(text or "")
+        if len(cleaned) < 120:
+            return True
+
+        alpha = sum(1 for char in cleaned if char.isalpha())
+        noisy = sum(1 for char in cleaned if char in "#$%&*<=>?@[\\]^_`{|}~\ufffd\u25a1")
+        return alpha < 80 or noisy / max(len(cleaned), 1) >= 0.12
 
     def _make_item(self, day: dt.date, source_url: str, item_url: str, title: str, content: str, file_path: str) -> GazetteItem:
         content = clean_extracted_text(clean_whitespace(content))

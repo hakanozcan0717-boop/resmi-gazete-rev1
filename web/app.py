@@ -84,7 +84,12 @@ def create_app(db_path: str = DEFAULT_DB):
             start = parse_date(start_date)
             end = parse_date(end_date)
             job_db = GazetteDB(db_path)
-            crawler = OfficialGazetteCrawler(timeout=90, sleep=1.5, retries=2, max_request_seconds=240)
+            crawler = OfficialGazetteCrawler(
+                timeout=int(os.getenv("CRAWL_TIMEOUT", "60")),
+                sleep=float(os.getenv("CRAWL_SLEEP", "0.4")),
+                retries=int(os.getenv("CRAWL_RETRIES", "2")),
+                max_request_seconds=int(os.getenv("CRAWL_MAX_REQUEST_SECONDS", "180")),
+            )
 
             found = 0
             inserted = 0
@@ -103,7 +108,7 @@ def create_app(db_path: str = DEFAULT_DB):
                         if items or attempt == 2:
                             break
                         _job_log(job_id, f"[TEKRAR] {day}: 0 kayıt, tekrar deneniyor ({attempt + 1}/2)")
-                        threading.Event().wait(20)
+                        threading.Event().wait(float(os.getenv("CRAWL_EMPTY_DAY_SLEEP", "8")))
 
                     found += len(items)
                     day_inserted = 0
