@@ -93,7 +93,9 @@ class OfficialGazetteCrawler:
             if status != 200 or not raw_item:
                 continue
             if item_url.lower().endswith(".pdf") or "pdf" in ctype.lower():
-                item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title)
+                item = self._build_companion_html_item(day, html_url, item_url, link_title)
+                if not item:
+                    item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title)
             else:
                 item_html = self._decode_bytes(raw_item)
                 text = self._html_to_text(item_html)
@@ -138,6 +140,43 @@ class OfficialGazetteCrawler:
                         return text[:300]
         m = re.search(r"<title[^>]*>(.*?)</title>", raw_html, re.I | re.S)
         return strip_html_fallback(m.group(1))[:300] if m else ""
+
+    def _build_companion_html_item(
+        self,
+        day: dt.date,
+        source_url: str,
+        pdf_url: str,
+        fallback_title: str = "",
+    ) -> Optional[GazetteItem]:
+        for html_url in self._companion_html_urls(pdf_url):
+            status, raw_html, ctype = self.client.get(html_url)
+            if status != 200 or not raw_html or "pdf" in ctype.lower():
+                continue
+
+            decoded = self._decode_bytes(raw_html)
+            text = clean_extracted_text(self._html_to_text(decoded))
+            if len(text) < 120:
+                continue
+
+            title = self._extract_title_from_html(decoded) or fallback_title or f"Belge {day:%Y-%m-%d}"
+            print(f"[HTML FALLBACK] PDF yerine HTML kullanıldı: {html_url}")
+            return self._make_item(day, source_url, html_url, title, text, "")
+
+        return None
+
+    def _companion_html_urls(self, pdf_url: str) -> List[str]:
+        parsed = urllib.parse.urlparse(pdf_url)
+        path = parsed.path or ""
+        if not path.lower().endswith(".pdf"):
+            return []
+
+        base_path = path[:-4]
+        candidates = []
+        for suffix in [".htm", ".html"]:
+            candidate = urllib.parse.urlunparse(parsed._replace(path=base_path + suffix))
+            candidates.append(candidate)
+
+        return candidates
 
     def _build_pdf_item(self, day: dt.date, pdf_url: str, raw_pdf: bytes, fallback_title: str = "") -> Optional[GazetteItem]:
         pdf_dir = ensure_dir(self.data_dir / f"{day:%Y}" / f"{day:%m}")
