@@ -41,6 +41,7 @@ jobs:
           import datetime as dt
           import json
           import os
+          import socket
           import sys
           import time
           import urllib.error
@@ -67,7 +68,7 @@ jobs:
           print("Tarih hesabi: Europe/Istanbul (UTC+3)")
           print(f"Tarih araligi: {start} - {end}")
 
-          def request_json(method, path, payload=None):
+          def request_json(method, path, payload=None, attempts=4):
               data = None
               headers = {
                   "X-Admin-Token": token,
@@ -83,17 +84,27 @@ jobs:
                   headers=headers,
                   method=method,
               )
-              try:
-                  with urllib.request.urlopen(req, timeout=60) as response:
-                      body = response.read().decode("utf-8")
-                      return response.status, json.loads(body or "{}")
-              except urllib.error.HTTPError as exc:
-                  body = exc.read().decode("utf-8", errors="replace")
+              for attempt in range(1, attempts + 1):
                   try:
-                      parsed = json.loads(body or "{}")
-                  except Exception:
-                      parsed = {"error": body}
-                  return exc.code, parsed
+                      with urllib.request.urlopen(req, timeout=120) as response:
+                          body = response.read().decode("utf-8")
+                          return response.status, json.loads(body or "{}")
+                  except urllib.error.HTTPError as exc:
+                      body = exc.read().decode("utf-8", errors="replace")
+                      try:
+                          parsed = json.loads(body or "{}")
+                      except Exception:
+                          parsed = {"error": body}
+                      return exc.code, parsed
+                  except (TimeoutError, socket.timeout, urllib.error.URLError) as exc:
+                      if attempt >= attempts:
+                          raise
+                      wait_seconds = min(20 * attempt, 60)
+                      print(
+                          f"Istek zaman asimi/ag hatasi: {method} {path} "
+                          f"({attempt}/{attempts}) - {exc}. {wait_seconds}s sonra tekrar."
+                      )
+                      time.sleep(wait_seconds)
 
           status, data = request_json(
               "POST",
