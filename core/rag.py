@@ -761,8 +761,8 @@ class RAGEngine:
 
         if not rows:
             lines.extend([
-                "Atama kaynakları bulundu; ancak bu kaynak metinlerinde kişi/kurum satırları ayrıştırılabilir biçimde yok.",
-                "Bu genelde ilgili Resmî Gazete PDF'inin metin katmanının bozuk çıkmasından kaynaklanır.",
+                "Atama kaynakları bulundu; ancak kaynaklarda kişi ve kurum/görev bilgisi okunabilir biçimde yer almıyor.",
+                "Kaynak bağlantılarını açarak karar metnini ayrıca kontrol edebilirsiniz.",
                 "",
                 "Bulunan kaynaklar:",
             ])

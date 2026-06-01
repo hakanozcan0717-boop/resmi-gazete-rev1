@@ -192,7 +192,7 @@ Atama soruları için sistem ayrıca şunu dener:
 
 - Soru `kurumlara yapılan atamalar`, `hangi kuruma kim atanmış`, `atamaları listele` gibi ise yapılandırılmış cevap üretir.
 - Kaynak metinde açıkça `... görevine Ahmet Yılmaz atanmıştır` benzeri satırlar varsa tablo çıkarır.
-- PDF metni bozuksa veya kişi/kurum bilgisi metin katmanında yoksa bunu açıkça belirtir; bilgi uydurmaz.
+- Kaynakta kişi/kurum bilgisi okunabilir metin olarak yoksa bunu açıkça belirtir; bilgi uydurmaz.
 
 ## Metin Temizleme
 
