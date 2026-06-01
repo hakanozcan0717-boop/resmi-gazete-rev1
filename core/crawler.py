@@ -20,6 +20,10 @@ try:
     from pypdf import PdfReader
 except Exception:
     PdfReader = None
+try:
+    import fitz
+except Exception:
+    fitz = None
 
 class OfficialGazetteCrawler:
     def __init__(
@@ -183,30 +187,93 @@ class OfficialGazetteCrawler:
         fname = safe_filename(Path(urllib.parse.urlparse(pdf_url).path).name or f"{day:%Y%m%d}.pdf")
         pdf_path = pdf_dir / fname
         pdf_path.write_bytes(raw_pdf)
-        text = ""
-        if PdfReader:
-            try:
-                reader = PdfReader(str(pdf_path))
-                pages = []
-                started_at = time.monotonic()
-                for page_index, page in enumerate(reader.pages):
-                    if page_index >= 30:
+        candidates = []
+
+        pymupdf_text = self._extract_pdf_text_pymupdf(pdf_path)
+        if pymupdf_text:
+            candidates.append(("pymupdf", pymupdf_text))
+
+        pypdf_text = self._extract_pdf_text_pypdf(pdf_path)
+        if pypdf_text:
+            candidates.append(("pypdf", pypdf_text))
+
+        if candidates:
+            extractor_name, text = max(candidates, key=lambda item: self._pdf_text_quality_score(item[1]))
+            print(f"[PDF METIN] {pdf_path.name}: {extractor_name} kullanıldı")
+        else:
+            text = "PDF indirildi fakat metin çıkarılamadı. PyMuPDF veya pypdf kurulumunu kontrol edin."
+        title = fallback_title or f"{day:%d.%m.%Y} Resmî Gazete PDF"
+        return self._make_item(day, pdf_url, pdf_url, title, text, str(pdf_path))
+
+    def _extract_pdf_text_pymupdf(self, pdf_path: Path, max_pages: int = 30, max_seconds: int = 30) -> str:
+        if not fitz:
+            return ""
+
+        try:
+            pages = []
+            started_at = time.monotonic()
+            with fitz.open(str(pdf_path)) as doc:
+                for page_index, page in enumerate(doc):
+                    if page_index >= max_pages:
                         pages.append("[PDF metin çıkarma ilk 30 sayfa ile sınırlandı.]")
                         break
-                    if time.monotonic() - started_at > 30:
+                    if time.monotonic() - started_at > max_seconds:
                         pages.append("[PDF metin çıkarma süre sınırı nedeniyle durduruldu.]")
                         break
                     try:
-                        pages.append(page.extract_text() or "")
+                        pages.append(page.get_text("text") or "")
                     except Exception:
                         pass
-                text = clean_whitespace("\n".join(pages))
-            except Exception as exc:
-                print(f"[PDF OKUMA HATA] {pdf_path}: {exc}", file=sys.stderr)
-        else:
-            text = "PDF indirildi fakat metin çıkarma için pypdf kurulu değil. Kurulum: pip install pypdf"
-        title = fallback_title or f"{day:%d.%m.%Y} Resmî Gazete PDF"
-        return self._make_item(day, pdf_url, pdf_url, title, text, str(pdf_path))
+            return clean_whitespace("\n".join(pages))
+        except Exception as exc:
+            print(f"[PDF PYMUPDF HATA] {pdf_path}: {exc}", file=sys.stderr)
+            return ""
+
+    def _extract_pdf_text_pypdf(self, pdf_path: Path, max_pages: int = 30, max_seconds: int = 30) -> str:
+        if not PdfReader:
+            return ""
+
+        try:
+            reader = PdfReader(str(pdf_path))
+            pages = []
+            started_at = time.monotonic()
+            for page_index, page in enumerate(reader.pages):
+                if page_index >= max_pages:
+                    pages.append("[PDF metin çıkarma ilk 30 sayfa ile sınırlandı.]")
+                    break
+                if time.monotonic() - started_at > max_seconds:
+                    pages.append("[PDF metin çıkarma süre sınırı nedeniyle durduruldu.]")
+                    break
+                try:
+                    pages.append(page.extract_text() or "")
+                except Exception:
+                    pass
+            return clean_whitespace("\n".join(pages))
+        except Exception as exc:
+            print(f"[PDF PYPDF HATA] {pdf_path}: {exc}", file=sys.stderr)
+            return ""
+
+    def _pdf_text_quality_score(self, text: str) -> float:
+        cleaned = clean_extracted_text(text or "")
+        if not cleaned:
+            return 0.0
+
+        length = len(cleaned)
+        alpha = sum(1 for char in cleaned if char.isalpha())
+        control = sum(1 for char in cleaned if ord(char) < 32 and char not in "\n\r\t")
+        noisy = sum(1 for char in cleaned if char in "#$%&*<=>?@[\\]^_`{|}~\ufffd\u25a1")
+        turkish_hits = sum(
+            cleaned.lower().count(word)
+            for word in ["resmî", "gazete", "madde", "karar", "yönetmelik", "tebliğ", "atama"]
+        )
+
+        return (
+            min(length, 50000) / 100
+            + alpha * 0.5
+            + turkish_hits * 200
+            - noisy * 5
+            - control * 50
+        )
 
     def _make_item(self, day: dt.date, source_url: str, item_url: str, title: str, content: str, file_path: str) -> GazetteItem:
         content = clean_extracted_text(clean_whitespace(content))

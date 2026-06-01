@@ -2,6 +2,7 @@ requests
 beautifulsoup4
 flask
 pypdf
+PyMuPDF
 scikit-learn
 gunicorn
 openai
