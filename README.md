@@ -142,13 +142,13 @@ venv\Scripts\python.exe main.py rag-index --start 2026-05-31 --end 2026-06-01
 RAG kaynak arama:
 
 ```powershell
-venv\Scripts\python.exe main.py rag-ask --question "kurumlara yapılan atamaları göster"
+venv\Scripts\python.exe main.py rag-ask --question "ihale ile ilgili düzenlemeler nelerdir?"
 ```
 
 RAG + LLM cevap:
 
 ```powershell
-venv\Scripts\python.exe main.py rag-llm --question "vergiyle ilgili kararları özetle"
+venv\Scripts\python.exe main.py rag-llm --question "ihale ile ilgili düzenlemeler nelerdir?"
 ```
 
 Web panel:
