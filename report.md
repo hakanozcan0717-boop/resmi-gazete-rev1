@@ -95,7 +95,7 @@ Soru geldiğinde sistem:
 4. Kullanıcı isterse LLM'e kaynaklı prompt gönderir.
 5. LLM sadece verilen kaynaklara dayanarak Türkçe cevap üretir.
 
-Sistem özellikle `kurumlara yapılan atamalar`, `hangi kuruma kim atanmış`, `atamaları listele` gibi sorular için yapılandırılmış cevap üretmeye çalışır. Uygun kaynak metin varsa `Tarih | Karar | Kişi | Kurum/Görev | Kaynak` yapısında liste oluşturur.
+Sistem özellikle `ihale ile ilgili düzenlemeler nelerdir?` gibi sorular için yapılandırılmış cevap üretmeye çalışır. Uygun kaynak metin varsa `Tarih | Karar | Kişi | Kurum/Görev | Kaynak` yapısında liste oluşturur.
 
 ## 7. Web Panel
 
