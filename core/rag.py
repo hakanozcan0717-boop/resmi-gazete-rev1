@@ -704,7 +704,7 @@ class RAGEngine:
 
         for item in results:
             metadata = item.get("metadata", {})
-            text = clean_extracted_text(item.get("text", ""))
+            text = self._appointment_text_for_extraction(item)
             decision = self._decision_number(metadata.get("title", "") + " " + text)
 
             for sentence in self._appointment_sentences(text):
@@ -729,6 +729,23 @@ class RAGEngine:
                 })
 
         return rows
+
+    def _appointment_text_for_extraction(self, item: Dict) -> str:
+        metadata = item.get("metadata", {}) or {}
+        gazette_id = metadata.get("gazette_id")
+        if gazette_id:
+            try:
+                row = self.db.get_item(int(gazette_id))
+                if row:
+                    title = row["title"] or ""
+                    content = row["content"] or ""
+                    full_text = clean_extracted_text(f"{title}\n{content}")
+                    if len(full_text) > len(clean_extracted_text(item.get("text", ""))):
+                        return full_text
+            except Exception:
+                pass
+
+        return clean_extracted_text(item.get("text", ""))
 
     def _appointment_sentences(self, text: str) -> List[str]:
         text = re.sub(r"\s+", " ", text or "")
