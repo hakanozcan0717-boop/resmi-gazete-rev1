@@ -363,6 +363,8 @@ class RAGEngine:
         stop_terms = {
             "getir", "listele", "goster", "sirala", "bul", "hangi",
             "nelerdir", "kaynaklari", "kaynaklar", "ilgili", "hakkinda",
+            "ozet", "ozetle", "ozetler", "ozetleyin", "acikla", "aciklayin",
+            "anlat", "anlatin", "bilgi", "ver", "nedir", "neler",
             "resmi", "gazete", "kararlari", "kararlar", "kanunlari",
             "yonetmelikleri", "tebligleri", "ihaleleri", "atamalari",
             "atamalar", "kurum", "kuruma", "kurumlara", "kim",
@@ -590,6 +592,11 @@ class RAGEngine:
             item for item in reranked
             if self._matches_intent(intent, item) and self._passes_question_terms(question_terms, item)
         ]
+        if not filtered_results and question_terms:
+            filtered_results = [
+                item for item in reranked
+                if self._matches_intent(intent, item)
+            ]
         filtered_results.sort(
             key=lambda item: (
                 -self._question_term_score(question_terms, item),
