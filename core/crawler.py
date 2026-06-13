@@ -108,11 +108,13 @@ class OfficialGazetteCrawler:
             if status != 200 or not raw_item:
                 continue
             if item_url.lower().endswith(".pdf") or "pdf" in ctype.lower():
-                item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title)
+                item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title, allow_ocr=False)
                 if item and self._needs_html_fallback(item.content):
                     html_item = self._build_companion_html_item(day, html_url, item_url, link_title)
                     if html_item:
                         item = html_item
+                    else:
+                        item = self._build_pdf_item(day, item_url, raw_item, fallback_title=link_title, allow_ocr=True)
             else:
                 item_html = self._decode_bytes(raw_item)
                 text = self._html_to_text(item_html)
@@ -195,7 +197,14 @@ class OfficialGazetteCrawler:
 
         return candidates
 
-    def _build_pdf_item(self, day: dt.date, pdf_url: str, raw_pdf: bytes, fallback_title: str = "") -> Optional[GazetteItem]:
+    def _build_pdf_item(
+        self,
+        day: dt.date,
+        pdf_url: str,
+        raw_pdf: bytes,
+        fallback_title: str = "",
+        allow_ocr: bool = True,
+    ) -> Optional[GazetteItem]:
         pdf_dir = ensure_dir(self.data_dir / f"{day:%Y}" / f"{day:%m}")
         fname = safe_filename(Path(urllib.parse.urlparse(pdf_url).path).name or f"{day:%Y%m%d}.pdf")
         pdf_path = pdf_dir / fname
@@ -212,7 +221,7 @@ class OfficialGazetteCrawler:
                 candidates.append(("pypdf", pypdf_text))
 
         best_text = max((text for _, text in candidates), key=self._pdf_text_quality_score, default="")
-        if self._should_ocr_pdf(best_text, pdf_path):
+        if allow_ocr and self._should_ocr_pdf(best_text, pdf_path):
             ocr_text = ""
             for ocr_attempt in range(1, 4):
                 ocr_text = self._extract_pdf_text_openai_ocr(pdf_path)
@@ -292,6 +301,8 @@ class OfficialGazetteCrawler:
             return ""
 
         model = os.getenv("OPENAI_PDF_OCR_MODEL", "gpt-4o-mini")
+        max_pages = int(os.getenv("OPENAI_PDF_OCR_MAX_PAGES", str(max_pages)))
+        max_seconds = int(os.getenv("OPENAI_PDF_OCR_MAX_SECONDS", str(max_seconds)))
         client = OpenAI(api_key=api_key)
         pages = []
         started_at = time.monotonic()
