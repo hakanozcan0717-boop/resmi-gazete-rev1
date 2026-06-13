@@ -583,9 +583,11 @@ class RAGEngine:
     def prepare_sources(self, question: str, top_k: int = 5) -> List[Dict]:
         intent = self._detect_intent(question)
         question_terms = self._meaningful_question_terms(question, intent)
+        is_assignment_request = self._is_appointment_assignment_request(question)
 
         raw_limit = max(top_k * 8, 40)
-        raw_results = self.retrieve(question, top_k=raw_limit)
+        search_query = self._appointment_search_query(question) if is_assignment_request else question
+        raw_results = self.retrieve(search_query, top_k=raw_limit)
         reranked = self._rerank_and_filter_results(question, raw_results, top_k=raw_limit)
 
         filtered_results = [
@@ -597,8 +599,16 @@ class RAGEngine:
                 item for item in reranked
                 if self._matches_intent(intent, item)
             ]
+        if is_assignment_request:
+            real_assignment_results = [
+                item for item in filtered_results
+                if self._is_real_appointment_decision_source(item)
+            ]
+            if real_assignment_results:
+                filtered_results = real_assignment_results
         filtered_results.sort(
             key=lambda item: (
+                -self._appointment_source_score(item) if is_assignment_request else 0,
                 -self._question_term_score(question_terms, item),
                 item.get("distance", 999),
             )
@@ -625,6 +635,42 @@ class RAGEngine:
                 break
 
         return prepared
+
+    def _appointment_search_query(self, question: str) -> str:
+        return (
+            f"{question} Cumhurbaşkanı Tarafından Yapılan Atamalar Hakkında Kararlar "
+            "Karar atanmıştır görevine atanmıştır"
+        )
+
+    def _is_real_appointment_decision_source(self, item: Dict) -> bool:
+        haystack = self._source_text_for_filter(item)
+        title = self._normalize_text(str(item.get("metadata", {}).get("title", "")))
+        category = self._normalize_text(str(item.get("metadata", {}).get("category", "")))
+
+        if "atanmistir" not in haystack:
+            return False
+
+        title_or_category = f"{title} {category}"
+        if "cumhurbaskani tarafindan yapilan atamalar" in title_or_category:
+            return True
+        if "atamalar hakkinda karar" in title_or_category:
+            return True
+        return bool(re.search(r"\bkarar\s*:?\s*\d{4}\s*/\s*\d+\b", haystack))
+
+    def _appointment_source_score(self, item: Dict) -> int:
+        haystack = self._source_text_for_filter(item)
+        score = 0
+        for phrase, weight in [
+            ("cumhurbaskani tarafindan yapilan atamalar", 50),
+            ("atamalar hakkinda karar", 40),
+            ("atanmistir", 30),
+            ("karar:", 20),
+            ("gorevine", 10),
+        ]:
+            if phrase in haystack:
+                score += weight
+        score += len(re.findall(r"\bkarar\s*:?\s*\d{4}\s*/\s*\d+\b", haystack)) * 15
+        return score
 
     def _format_source_list(self, question: str, results: List[Dict]) -> str:
         lines = [f"Soru: {question}", ""]
@@ -727,6 +773,54 @@ class RAGEngine:
         if not position:
             return None
         return person, position
+
+    def _appointment_sentences(self, text: str) -> List[str]:
+        text = re.sub(r"\s+", " ", text or "")
+        candidates = re.split(r"(?<=[.!?])\s+|(?=Karar:\s*\d{4}/\d+)", text)
+        return [part.strip() for part in candidates if "atanmistir" in self._normalize_text(part)]
+
+    def _parse_appointment_sentence(self, sentence: str) -> Optional[tuple[str, str]]:
+        before = re.split(r"\b(?:atanmıştır|atanmistir|atanmÄ±ÅŸtÄ±r)\b", sentence, maxsplit=1, flags=re.I)[0]
+        before = re.sub(r"^.*?Karar\s*:\s*\d{4}/\d+\s*", "", before, flags=re.I)
+        before = re.sub(r"^.*?(?:Cumhurbaşkanlığından|CumhurbaÅŸkanlÄ±ÄŸÄ±ndan)\s*:?\s*", "", before, flags=re.I)
+        before = self._clean_assignment_value(before)
+        if not before:
+            return None
+
+        words = before.split()
+        if len(words) < 3:
+            return None
+
+        person_words = []
+        for word in reversed(words):
+            clean = word.strip(" ,;:.()[]")
+            if not clean:
+                continue
+            normalized = self._normalize_text(clean)
+            if normalized in {"dr", "prof", "doc", "av", "muh"}:
+                person_words.append(clean)
+                continue
+            if clean[:1].isupper() and not clean.isupper() and not self._looks_like_position_suffix(clean):
+                person_words.append(clean)
+                if len(person_words) >= 5:
+                    break
+                continue
+            break
+
+        person_words = list(reversed(person_words))
+        if len(person_words) < 2:
+            return None
+
+        person = self._clean_assignment_value(" ".join(person_words))
+        position = self._clean_assignment_value(" ".join(words[: -len(person_words)]))
+        position = re.sub(r"^(?:açık bulunan|aÃ§Ä±k bulunan|boş bulunan|boÅŸ bulunan)\s+", "", position, flags=re.I)
+        if not position:
+            return None
+        return person, position
+
+    def _looks_like_position_suffix(self, word: str) -> bool:
+        normalized = self._normalize_text(word)
+        return normalized.endswith(("ligina", "ligine", "lugune", "sine", "ina", "ine", "una", "une"))
 
     def _clean_assignment_value(self, value: str) -> str:
         value = clean_extracted_text(value or "")
