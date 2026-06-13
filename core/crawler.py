@@ -212,7 +212,7 @@ class OfficialGazetteCrawler:
                 candidates.append(("pypdf", pypdf_text))
 
         best_text = max((text for _, text in candidates), key=self._pdf_text_quality_score, default="")
-        if not self._is_good_pdf_text(best_text):
+        if self._should_ocr_pdf(best_text, pdf_path):
             ocr_text = self._extract_pdf_text_openai_ocr(pdf_path)
             if ocr_text:
                 candidates.append(("openai_ocr", ocr_text))
@@ -385,6 +385,68 @@ class OfficialGazetteCrawler:
         alpha = sum(1 for char in cleaned if char.isalpha())
         noisy = sum(1 for char in cleaned if char in "#$%&*<=>?@[\\]^_`{|}~\ufffd\u25a1")
         return alpha < 80 or noisy / max(len(cleaned), 1) >= 0.12
+
+    def _should_ocr_pdf(self, text: str, pdf_path: Path) -> bool:
+        if not self._is_good_pdf_text(text):
+            return True
+
+        if self._looks_like_incomplete_pdf_text(text, pdf_path):
+            return True
+
+        return False
+
+    def _pdf_has_unmapped_fonts(self, pdf_path: Path, max_pages: int = 3) -> bool:
+        if not PdfReader:
+            return False
+
+        try:
+            reader = PdfReader(str(pdf_path))
+            checked = 0
+            missing = 0
+            for page in reader.pages[:max_pages]:
+                resources = page.get("/Resources") or {}
+                fonts = resources.get("/Font") or {}
+                for font_ref in fonts.values():
+                    checked += 1
+                    font = font_ref.get_object()
+                    if font.get("/Subtype") == "/Type0" and not font.get("/ToUnicode"):
+                        missing += 1
+            return checked > 0 and missing / checked >= 0.5
+        except Exception:
+            return False
+
+    def _looks_like_incomplete_pdf_text(self, text: str, pdf_path: Path) -> bool:
+        cleaned = clean_extracted_text(text or "")
+        if not cleaned:
+            return True
+
+        page_count = self._pdf_page_count(pdf_path)
+        alpha = sum(1 for char in cleaned if char.isalpha())
+        noisy = sum(1 for char in cleaned if ord(char) < 32 or char in "#$%&*+<=>?@[\\]^_`{|}~\ufffd\u25a1")
+        length = len(cleaned)
+
+        if page_count >= 2 and length < page_count * 350:
+            return True
+        if alpha / max(length, 1) < 0.35:
+            return True
+        if noisy / max(length, 1) > 0.10:
+            return True
+
+        return False
+
+    def _pdf_page_count(self, pdf_path: Path) -> int:
+        if fitz:
+            try:
+                with fitz.open(str(pdf_path)) as doc:
+                    return len(doc)
+            except Exception:
+                pass
+        if PdfReader:
+            try:
+                return len(PdfReader(str(pdf_path)).pages)
+            except Exception:
+                pass
+        return 0
 
     def _make_item(self, day: dt.date, source_url: str, item_url: str, title: str, content: str, file_path: str) -> GazetteItem:
         content = clean_extracted_text(clean_whitespace(content))
