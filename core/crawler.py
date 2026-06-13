@@ -213,7 +213,15 @@ class OfficialGazetteCrawler:
 
         best_text = max((text for _, text in candidates), key=self._pdf_text_quality_score, default="")
         if self._should_ocr_pdf(best_text, pdf_path):
-            ocr_text = self._extract_pdf_text_openai_ocr(pdf_path)
+            ocr_text = ""
+            for ocr_attempt in range(1, 4):
+                ocr_text = self._extract_pdf_text_openai_ocr(pdf_path)
+                if ocr_text:
+                    break
+                if ocr_attempt < 3:
+                    wait_seconds = 2 * ocr_attempt
+                    print(f"[PDF OCR TEKRAR] {pdf_path.name}: {wait_seconds}s bekleniyor ({ocr_attempt}/3)")
+                    time.sleep(wait_seconds)
             if ocr_text:
                 candidates.append(("openai_ocr", ocr_text))
 
