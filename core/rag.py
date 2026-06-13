@@ -606,6 +606,10 @@ class RAGEngine:
             ]
             if real_assignment_results:
                 filtered_results = real_assignment_results
+            else:
+                title_sources = self._db_appointment_decision_sources(top_k=raw_limit)
+                if title_sources:
+                    filtered_results = title_sources
         filtered_results.sort(
             key=lambda item: (
                 -self._appointment_source_score(item) if is_assignment_request else 0,
@@ -635,6 +639,46 @@ class RAGEngine:
                 break
 
         return prepared
+
+    def _db_appointment_decision_sources(self, top_k: int = 20) -> List[Dict]:
+        try:
+            rows = self.db._fetchall(
+                """
+                SELECT id, date, title, category, content, item_url
+                FROM gazette_items
+                WHERE title LIKE ? OR title LIKE ? OR content LIKE ?
+                ORDER BY date DESC, id DESC
+                LIMIT ?
+                """,
+                (
+                    "%Atamalar Hakkında Kararlar%",
+                    "%Atamalar Hakkinda Kararlar%",
+                    "%Atamalar Hakkında Kararlar%",
+                    int(top_k),
+                ),
+            )
+        except Exception:
+            return []
+
+        output = []
+        for row in rows:
+            output.append({
+                "id": f"gazette_{row['id']}_appointment_title",
+                "text": row["content"] or row["title"] or "",
+                "metadata": {
+                    "gazette_id": row["id"],
+                    "chunk_index": 0,
+                    "title": row["title"] or "",
+                    "date": row["date"] or "",
+                    "category": row["category"] or "Atama",
+                    "item_url": row["item_url"] or "",
+                },
+                "distance": 0,
+                "score": 1,
+                "hybrid_score": 999,
+                "intent": "atama",
+            })
+        return output
 
     def _appointment_search_query(self, question: str) -> str:
         return (
@@ -672,6 +716,29 @@ class RAGEngine:
         score += len(re.findall(r"\bkarar\s*:?\s*\d{4}\s*/\s*\d+\b", haystack)) * 15
         return score
 
+    def _is_appointment_decision_title(self, item: Dict) -> bool:
+        metadata = item.get("metadata", {}) or {}
+        title = self._normalize_text(str(metadata.get("title", "")))
+        return (
+            "atamalar hakkinda karar" in title
+            or "atamalar hakkinda kararlar" in title
+            or "tarafindan yapilan atamalar" in title
+        )
+
+    def _looks_unreadable_appointment_text(self, item: Dict) -> bool:
+        text = self._appointment_text_for_extraction(item)
+        cleaned = clean_extracted_text(text or "")
+        if not cleaned:
+            return True
+
+        normalized = self._normalize_text(cleaned)
+        if "atanmistir" in normalized:
+            return False
+
+        noisy = sum(1 for char in cleaned if ord(char) < 32 or char in "#$%&*+<=>?@[\\]^_`{|}~\ufffd\u25a1")
+        alpha = sum(1 for char in cleaned if char.isalpha())
+        return alpha < 80 or noisy / max(len(cleaned), 1) > 0.18
+
     def _format_source_list(self, question: str, results: List[Dict]) -> str:
         lines = [f"Soru: {question}", ""]
 
@@ -705,28 +772,26 @@ class RAGEngine:
         for item in results:
             metadata = item.get("metadata", {})
             text = self._appointment_text_for_extraction(item)
-            decision = self._decision_number(metadata.get("title", "") + " " + text)
+            fallback_decision = self._decision_number(metadata.get("title", "") + " " + text)
 
             for sentence in self._appointment_sentences(text):
-                parsed = self._parse_appointment_sentence(sentence)
-                if not parsed:
-                    continue
-                person, position = parsed
-                if self._looks_like_bad_assignment(person, position):
-                    continue
+                decision = self._decision_number(sentence) if self._decision_number(sentence) != "-" else fallback_decision
+                for person, position in self._parse_appointment_rows(sentence):
+                    if self._looks_like_bad_assignment(person, position):
+                        continue
 
-                key = (metadata.get("date", ""), decision, person.lower(), position.lower())
-                if key in seen:
-                    continue
-                seen.add(key)
-                rows.append({
-                    "date": metadata.get("date", "-") or "-",
-                    "decision": decision,
-                    "person": person,
-                    "position": position,
-                    "institution": self._institution_from_position(position),
-                    "source": metadata.get("item_url", "-") or "-",
-                })
+                    key = (metadata.get("date", ""), decision, person.lower(), position.lower())
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    rows.append({
+                        "date": metadata.get("date", "-") or "-",
+                        "decision": decision,
+                        "person": person,
+                        "position": position,
+                        "institution": self._institution_from_position(position),
+                        "source": metadata.get("item_url", "-") or "-",
+                    })
 
         return rows
 
@@ -835,6 +900,122 @@ class RAGEngine:
             return None
         return person, position
 
+    def _parse_appointment_rows(self, sentence: str) -> List[tuple[str, str]]:
+        rows = self._parse_board_appointment_rows(sentence)
+        if rows:
+            return rows
+
+        parsed = self._parse_single_appointment_row(sentence)
+        if parsed:
+            return [parsed]
+
+        parsed = self._parse_appointment_sentence(sentence)
+        return [parsed] if parsed else []
+
+    def _parse_board_appointment_rows(self, sentence: str) -> List[tuple[str, str]]:
+        before = re.split(r"\b(?:atanmıştır|atanmistir|atanmÄ±ÅŸtÄ±r)\b", sentence, maxsplit=1, flags=re.I)[0]
+        before = re.sub(r"^.*?Karar\s*:\s*\d{4}/\d+\s*", "", before, flags=re.I)
+        before = re.sub(r"^.*?(?:Cumhurbaşkanlığından|CumhurbaÅŸkanlÄ±ÄŸÄ±ndan)\s*:?\s*", "", before, flags=re.I).strip()
+        if ";" not in before or not re.search(r"[–-]\s+", before):
+            return []
+
+        institution = self._clean_assignment_value(before.split(";", 1)[0])
+        rows = []
+        bullet_text = before.split(";", 1)[1]
+        for raw_line in re.split(r"\s+[–-]\s+", " " + bullet_text):
+            line = raw_line.strip()
+            if not line:
+                continue
+            line = re.split(r",\s*\d{1,2}/\d{1,2}/\d{4}|\b\d+\s+sayılı\b|\b\d+\s+sayili\b", line, maxsplit=1, flags=re.I)[0]
+            line = line.strip(" ,;")
+            if not line:
+                continue
+
+            if "," in line:
+                position_part, person_part = line.split(",", 1)
+            else:
+                match = re.match(r"(.+?(?:na|ne|n[ae]|lığına|liğine|luğuna|lüğüne|üyeliğine))\s+(.+)$", line, re.I)
+                if not match:
+                    continue
+                position_part, person_part = match.group(1), match.group(2)
+
+            person = self._extract_person_from_tail(person_part)
+            if not person:
+                continue
+
+            position = self._clean_assignment_value(f"{institution} {position_part}")
+            rows.append((person, position))
+        return rows
+
+    def _parse_single_appointment_row(self, sentence: str) -> Optional[tuple[str, str]]:
+        before = re.split(r"\b(?:atanmıştır|atanmistir|atanmÄ±ÅŸtÄ±r)\b", sentence, maxsplit=1, flags=re.I)[0]
+        before = re.sub(r"^.*?Karar\s*:\s*\d{4}/\d+\s*", "", before, flags=re.I)
+        before = re.sub(r"^.*?(?:Cumhurbaşkanlığından|CumhurbaÅŸkanlÄ±ÄŸÄ±ndan)\s*:?\s*", "", before, flags=re.I)
+        before = self._clean_assignment_value(before)
+        if not before:
+            return None
+
+        position_match = re.search(
+            r"(.+?(?:Başkanlığına|Bakanlığına|Yardımcılığına|Müdürlüğüne|Üyeliğine|Kuruluna|Kurumuna|Dairesine|lığına|liğine|luğuna|lüğüne))\s*,",
+            before,
+            re.I,
+        )
+        if not position_match:
+            return None
+
+        position = self._clean_assignment_value(position_match.group(1))
+        position = re.sub(r"^.*\b(?:boşalan|bosalan)\s+", "", position, flags=re.I)
+        position = re.sub(r"^.*\b(?:açık bulunan|acik bulunan)\s+", "", position, flags=re.I)
+        tail = before[position_match.end():]
+        parts = re.split(r"\bgereğince\b|\bgeregince\b", tail, flags=re.I)
+        person_tail = parts[-1] if parts else tail
+        person = self._extract_person_from_tail(person_tail)
+        if not person:
+            return None
+        return person, position
+
+    def _extract_person_from_tail(self, text: str) -> str:
+        text = self._clean_assignment_value(text)
+        text = re.sub(r"\b(?:atanmasına|atanmasina|atanması|atanmasi)\b.*$", "", text, flags=re.I)
+        words = [word.strip(" ,;:.()[]") for word in text.split()]
+        person_words = []
+        for word in reversed(words):
+            if not word:
+                continue
+            normalized = self._normalize_text(word)
+            if normalized in {"ve", "ile", "geregince"}:
+                break
+            if self._looks_like_role_word(normalized) and person_words:
+                break
+            if self._looks_like_person_word(word):
+                person_words.append(word)
+                if len(person_words) >= 5:
+                    break
+                continue
+            if person_words:
+                break
+
+        person_words = list(reversed(person_words))
+        if len(person_words) < 2:
+            return ""
+        return self._clean_assignment_value(" ".join(person_words))
+
+    def _looks_like_person_word(self, word: str) -> bool:
+        if not any(char.isalpha() for char in word):
+            return False
+        normalized = self._normalize_text(word)
+        if self._looks_like_role_word(normalized):
+            return False
+        return word[:1].isupper() or word.isupper()
+
+    def _looks_like_role_word(self, normalized: str) -> bool:
+        role_words = {
+            "baskan", "baskani", "baskanligi", "yardimcisi", "yardimcisi",
+            "genel", "mudur", "muduru", "kaymakami", "bakan", "uyesi",
+            "ikinci", "kurul", "kurulu", "dairesi", "idaresi",
+        }
+        return normalized in role_words or normalized.endswith(("ligina", "ligine", "lugune", "lugune", "cisi", "muduru", "kaymakami"))
+
     def _looks_like_position_suffix(self, word: str) -> bool:
         normalized = self._normalize_text(word)
         return normalized.endswith(("ligina", "ligine", "lugune", "sine", "ina", "ine", "una", "une"))
@@ -885,6 +1066,48 @@ class RAGEngine:
                 "Bulunan kaynaklar:",
             ])
             for item_no, item in enumerate(results, start=1):
+                metadata = item.get("metadata", {})
+                lines.append(f"{item_no}. [{metadata.get('date', '-')}] {metadata.get('title', '-')}")
+                lines.append(f"   Kaynak: {metadata.get('item_url', '-')}")
+            return "\n".join(lines).strip()
+
+        lines.append("| Tarih | Karar | Kişi | Kurum/Görev | Kaynak |")
+        lines.append("|---|---|---|---|---|")
+        for row in rows:
+            lines.append(
+                f"| {row['date']} | {row['decision']} | {row['person']} | "
+                f"{row['position']} | {row['source']} |"
+            )
+        return "\n".join(lines).strip()
+
+    def _format_appointment_assignments(self, question: str, results: List[Dict]) -> str:
+        rows = self._extract_appointment_assignments(results)
+        lines = [f"Soru: {question}", ""]
+
+        if not rows:
+            unreadable_decisions = [
+                item for item in results
+                if self._is_appointment_decision_title(item) and self._looks_unreadable_appointment_text(item)
+            ]
+            if unreadable_decisions:
+                lines.extend([
+                    "Atama kararı kaynakları bulundu; ancak bu kayıtlardaki PDF metni okunabilir biçimde çıkarılamamış.",
+                    "Bu yüzden kişi ve kurum/görev tablosu güvenilir şekilde üretilemiyor.",
+                    "İlgili tarihleri yeniden veri çekme ve Qdrant indeksleme işleminden geçirmek gerekir.",
+                    "",
+                    "Bulunan atama kararı kaynakları:",
+                ])
+                display_results = unreadable_decisions
+            else:
+                lines.extend([
+                    "Atama kelimesi geçen kaynaklar bulundu; ancak bunlar kişi/kurum atama kararı biçiminde okunabilir metin içermiyor.",
+                    "Bu kaynaklar yönetmelik veya genel atanma usulü metni olabilir.",
+                    "",
+                    "Bulunan kaynaklar:",
+                ])
+                display_results = results
+
+            for item_no, item in enumerate(display_results, start=1):
                 metadata = item.get("metadata", {})
                 lines.append(f"{item_no}. [{metadata.get('date', '-')}] {metadata.get('title', '-')}")
                 lines.append(f"   Kaynak: {metadata.get('item_url', '-')}")

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import datetime as dt
+import base64
 import html
+import os
 import re
 import sys
 import time
@@ -24,6 +26,15 @@ try:
     import fitz
 except Exception:
     fitz = None
+try:
+    from openai import OpenAI
+except Exception:
+    OpenAI = None
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    pass
 
 class OfficialGazetteCrawler:
     def __init__(
@@ -200,6 +211,12 @@ class OfficialGazetteCrawler:
             if pypdf_text:
                 candidates.append(("pypdf", pypdf_text))
 
+        best_text = max((text for _, text in candidates), key=self._pdf_text_quality_score, default="")
+        if not self._is_good_pdf_text(best_text):
+            ocr_text = self._extract_pdf_text_openai_ocr(pdf_path)
+            if ocr_text:
+                candidates.append(("openai_ocr", ocr_text))
+
         if candidates:
             extractor_name, text = max(candidates, key=lambda item: self._pdf_text_quality_score(item[1]))
             print(f"[PDF METIN] {pdf_path.name}: {extractor_name} kullanıldı")
@@ -254,6 +271,76 @@ class OfficialGazetteCrawler:
             return clean_whitespace("\n".join(pages))
         except Exception as exc:
             print(f"[PDF PYPDF HATA] {pdf_path}: {exc}", file=sys.stderr)
+            return ""
+
+    def _extract_pdf_text_openai_ocr(self, pdf_path: Path, max_pages: int = 8, max_seconds: int = 120) -> str:
+        if not fitz or not OpenAI:
+            return ""
+        if (os.getenv("OPENAI_PDF_OCR") or "1").strip().lower() in {"0", "false", "no", "kapali"}:
+            return ""
+
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return ""
+
+        model = os.getenv("OPENAI_PDF_OCR_MODEL", "gpt-4o-mini")
+        client = OpenAI(api_key=api_key)
+        pages = []
+        started_at = time.monotonic()
+
+        try:
+            with fitz.open(str(pdf_path)) as doc:
+                for page_index, page in enumerate(doc):
+                    if page_index >= max_pages:
+                        pages.append(f"[OCR ilk {max_pages} sayfa ile sınırlandı.]")
+                        break
+                    if time.monotonic() - started_at > max_seconds:
+                        pages.append("[OCR süre sınırı nedeniyle durduruldu.]")
+                        break
+
+                    pixmap = page.get_pixmap(matrix=fitz.Matrix(2, 2), alpha=False)
+                    image_b64 = base64.b64encode(pixmap.tobytes("png")).decode("ascii")
+                    data_url = f"data:image/png;base64,{image_b64}"
+
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=[
+                            {
+                                "role": "system",
+                                "content": (
+                                    "Sen OCR yapan bir yardımcı modülsün. "
+                                    "Görüntüdeki Resmî Gazete sayfasını Türkçe olarak aynen metne çevir. "
+                                    "Yorum, özet veya açıklama ekleme."
+                                ),
+                            },
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": (
+                                            "Bu PDF sayfasındaki okunabilir tüm metni çıkar. "
+                                            "Satır sırasını koru. Karar numaraları, kişi adları ve kurum/görev adlarını aynen yaz."
+                                        ),
+                                    },
+                                    {
+                                        "type": "image_url",
+                                        "image_url": {"url": data_url},
+                                    },
+                                ],
+                            },
+                        ],
+                        temperature=0,
+                    )
+                    page_text = response.choices[0].message.content or ""
+                    pages.append(page_text)
+
+            text = clean_whitespace("\n\n".join(pages))
+            if text:
+                print(f"[PDF OCR] {pdf_path.name}: OpenAI OCR kullanıldı")
+            return text
+        except Exception as exc:
+            print(f"[PDF OCR HATA] {pdf_path}: {exc}", file=sys.stderr)
             return ""
 
     def _pdf_text_quality_score(self, text: str) -> float:
