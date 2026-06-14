@@ -1261,7 +1261,7 @@ CEVAP:
 
         return "\n".join(lines)
 
-    def build_prompt_for_llm(self, question: str, top_k: int = 5, sources: Optional[List[Dict]] = None) -> str:
+    def build_prompt_for_llm(self, question: str, top_k: int = 10, sources: Optional[List[Dict]] = None) -> str:
         """
         OpenAI, Gemini, Ollama vb. bir LLM'e verilecek prompt üretir.
         """
@@ -1327,7 +1327,7 @@ CEVAP:
 
         return prompt.strip()
 
-    def answer_with_llm(self, question: str, top_k: int = 5, model: str = None, sources: Optional[List[Dict]] = None) -> str:
+    def answer_with_llm(self, question: str, top_k: int = 10, model: str = None, sources: Optional[List[Dict]] = None) -> str:
         """
         RAG + LLM cevabı üretir.
         """
