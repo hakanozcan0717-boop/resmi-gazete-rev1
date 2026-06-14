@@ -1049,12 +1049,79 @@ class RAGEngine:
         clipped = text[:limit].rsplit(" ", 1)[0].strip()
         return clipped + "..."
 
+    def _appointment_llm_excerpt(self, text: str, limit: int) -> str:
+        text = clean_extracted_text(text or "")
+        text = re.sub(r"\s+", " ", text).strip()
+        if not text:
+            return ""
+
+        normalized = self._normalize_text(text)
+        appointment_terms = [
+            "atanmistir",
+            "atanmasina",
+            "atama yapilmistir",
+            "gorevine atan",
+            "uyeligine atan",
+            "baskanligina atan",
+        ]
+        spans = []
+        for term in appointment_terms:
+            start = 0
+            while True:
+                idx = normalized.find(term, start)
+                if idx < 0:
+                    break
+                spans.append((max(0, idx - 650), min(len(text), idx + 450)))
+                start = idx + len(term)
+
+        chunks = []
+        for start, end in sorted(spans):
+            chunk = text[start:end].strip(" .;")
+            chunk_norm = self._normalize_text(chunk)
+            if not chunk or self._looks_like_signature_only_chunk(chunk_norm):
+                continue
+            chunks.append(chunk)
+
+        if not chunks:
+            return self._clip_llm_source_text(text, limit)
+
+        excerpt = " ... ".join(chunks)
+        excerpt = re.sub(r"\bRecep\s+Tayyip\s+ERDO(?:Ğ|G)AN\b", "[IMZA MAKAMI]", excerpt, flags=re.I)
+        excerpt = re.sub(r"\bCumhurba(?:ş|s)kan(?:ı|i)\b", "[IMZA/ONAY MAKAMI]", excerpt, flags=re.I)
+        return self._clip_llm_source_text(excerpt, limit)
+
+    def _looks_like_signature_only_chunk(self, normalized: str) -> bool:
+        has_signature = "recep tayyip erdogan" in normalized or "cumhurbaskani" in normalized
+        has_assignment = any(
+            term in normalized
+            for term in ["atanmistir", "atanmasina", "gorevine atan", "uyeligine atan"]
+        )
+        return has_signature and not has_assignment
+
+    def _remove_signature_appointment_rows(self, answer: str) -> str:
+        lines = []
+        removed = 0
+        for line in (answer or "").splitlines():
+            normalized = self._normalize_text(line)
+            looks_like_table_row = line.strip().startswith("|") and line.count("|") >= 5
+            is_signature_person = "recep tayyip erdogan" in normalized
+            is_signature_position = "cumhurbaskanligi" in normalized or "cumhurbaskani" in normalized
+            if looks_like_table_row and is_signature_person and is_signature_position:
+                removed += 1
+                continue
+            lines.append(line)
+
+        cleaned = "\n".join(lines).strip()
+        if removed and cleaned:
+            cleaned += "\n\nNot: İmza/onay makamı olduğu anlaşılan Cumhurbaşkanı satırları otomatik çıkarıldı."
+        return cleaned
+
     def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
         context_parts = []
         source_limit = self._llm_source_char_limit("LLM_APPOINTMENT_SOURCE_CHAR_LIMIT", 900)
         for i, item in enumerate(sources, start=1):
             metadata = item.get("metadata", {}) or {}
-            text = self._clip_llm_source_text(
+            text = self._appointment_llm_excerpt(
                 self._appointment_text_for_extraction(item),
                 source_limit,
             )
@@ -1084,6 +1151,8 @@ Gorev:
 - Kaynaklari kendi kararina gore azaltma, atlama veya sadece en iyi birkac tanesini secme.
 - Cevabi markdown tablo olarak ver: Tarih | Karar | Kisi | Atandigi kurum/gorev | Kaynak.
 - "atanmistir", "atanmasina karar verilmistir", "gorevine atanmistir" ve benzeri ifadeleri atama olarak kabul et.
+- Recep Tayyip Erdogan / Recep Tayyip ERDOGAN / Cumhurbaskani ifadeleri genellikle imza veya onay makamidir; bunlari atanmis kisi olarak ASLA yazma.
+- Karar metnindeki imza, makam, yayim ve onay satirlarini atama satiri olarak kullanma.
 - Bir kararda birden fazla kisi varsa her kisiyi ayri satir yaz.
 - Kisi adini ve kurum/gorevi tahmin etme; kaynakta acik degilse satir yazma.
 - Kaynak metinleri ilgili ama hic kisi/kurum cifti ayrismiyorsa sadece "Kaynakta ayristirilabilir kisi/kurum bilgisi yok." de.
@@ -1358,7 +1427,8 @@ CEVAP:
             if LLMClient is not None:
                 prompt = self._build_appointment_extraction_prompt(question, sources)
                 llm = LLMClient(model=model)
-                return llm.generate_answer(prompt)
+                answer = llm.generate_answer(prompt)
+                return self._remove_signature_appointment_rows(answer)
             return self._format_appointment_assignments(question, sources)
 
         if LLMClient is None:
