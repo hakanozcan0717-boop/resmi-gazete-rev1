@@ -88,6 +88,27 @@ function showOutput(data) {
     document.getElementById("summary").innerHTML = fields.map(x => '<span class="tag">' + x + '</span>').join(" ");
 }
 
+async function readResponse(response) {
+    const text = await response.text();
+    if (!text.trim()) {
+        return {
+            error: "Sunucu bos cevap dondu.",
+            status: response.status,
+            body: ""
+        };
+    }
+
+    try {
+        return JSON.parse(text);
+    } catch (error) {
+        return {
+            error: "Sunucu JSON olmayan cevap dondu.",
+            status: response.status,
+            body: text.slice(0, 4000)
+        };
+    }
+}
+
 async function startCrawl() {
     const start = document.getElementById("start").value;
     const end = document.getElementById("end").value;
@@ -111,7 +132,7 @@ async function startCrawl() {
             },
             body: JSON.stringify({ start: start, end: end, index: shouldIndex })
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         if (!response.ok) {
@@ -152,7 +173,7 @@ async function startIndexOnly() {
             },
             body: JSON.stringify({ start: start, end: end })
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         if (!response.ok) {
@@ -178,7 +199,7 @@ async function refreshJob() {
         const response = await fetch("/admin/jobs/" + currentJobId, {
             headers: { "X-Admin-Token": currentToken }
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         const status = data.status || "bilinmiyor";
@@ -207,7 +228,7 @@ async function loadLatestJob() {
         const response = await fetch("/admin/jobs/latest", {
             headers: { "X-Admin-Token": token }
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         if (!response.ok) {
@@ -241,7 +262,7 @@ async function loadQdrantDates() {
         const response = await fetch("/admin/qdrant/dates", {
             headers: { "X-Admin-Token": token }
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         if (!response.ok) {
@@ -294,7 +315,7 @@ async function deleteDateRange() {
             },
             body: JSON.stringify({ start: start, end: end, confirm: confirm })
         });
-        const data = await response.json();
+        const data = await readResponse(response);
         showOutput(data);
 
         if (!response.ok) {
