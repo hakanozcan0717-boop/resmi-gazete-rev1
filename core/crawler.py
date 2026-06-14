@@ -409,6 +409,9 @@ class OfficialGazetteCrawler:
         if not self._is_good_pdf_text(text):
             return True
 
+        if self._looks_like_incomplete_appointment_pdf_text(text, pdf_path):
+            return True
+
         if self._looks_like_incomplete_pdf_text(text, pdf_path):
             return True
 
@@ -452,6 +455,54 @@ class OfficialGazetteCrawler:
             return True
 
         return False
+
+    def _looks_like_incomplete_appointment_pdf_text(self, text: str, pdf_path: Path) -> bool:
+        cleaned = clean_extracted_text(text or "")
+        if not cleaned:
+            return False
+
+        normalized = self._normalize_for_quality(cleaned)
+        filename = pdf_path.name.lower()
+        decision_count = len(re.findall(r"\bkarar\s*:?\s*\d{4}\s*/\s*\d+\b", normalized))
+        looks_like_appointment = (
+            "atama kararlari" in normalized
+            or "atamalar hakkinda karar" in normalized
+            or "tarafindan yapilan atamalar" in normalized
+            or (decision_count >= 2 and "cumhurbaskanligindan" in normalized and filename.endswith(".pdf"))
+        )
+        if not looks_like_appointment:
+            return False
+
+        has_assignment_body = any(
+            term in normalized
+            for term in [
+                "atanmistir",
+                "atanmasina",
+                "gorevine atan",
+                "uyeligine atan",
+                "baskanligina atan",
+                "gorevden alinmistir",
+            ]
+        )
+        signature_only = (
+            decision_count >= 2
+            and "recep tayyip erdogan" in normalized
+            and "cumhurbaskani" in normalized
+            and not has_assignment_body
+        )
+        return signature_only or (decision_count >= 2 and not has_assignment_body and len(cleaned) < 2500)
+
+    def _normalize_for_quality(self, text: str) -> str:
+        text = (text or "").lower()
+        replacements = {
+            "ı": "i", "İ": "i", "ğ": "g", "Ğ": "g", "ü": "u", "Ü": "u",
+            "ş": "s", "Ş": "s", "ö": "o", "Ö": "o", "ç": "c", "Ç": "c",
+            "â": "a", "î": "i", "û": "u",
+        }
+        for old, new in replacements.items():
+            text = text.replace(old, new)
+        text = re.sub(r"\s+", " ", text)
+        return text.strip()
 
     def _pdf_page_count(self, pdf_path: Path) -> int:
         if fitz:
