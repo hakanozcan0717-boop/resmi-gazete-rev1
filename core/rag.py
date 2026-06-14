@@ -1055,12 +1055,16 @@ Metin:
 """
             )
 
+        source_count = len(context_parts)
         context = "\n".join(context_parts).strip() or "Ilgili kaynak metni yok."
         return f"""
 Sen Resmi Gazete atama kararlarindan kisi ve kurum/gorev tablosu cikaran bir asistansin.
 
 Gorev:
 - Sadece asagidaki kaynak metinlerinde acikca gorunen atama bilgilerini kullan.
+- RAG tarafindan {source_count} kaynak verildi. KAYNAK 1'den KAYNAK {source_count}'e kadar butun kaynaklari cevapta ele al.
+- Her kaynak icin ya atama satirlarini yaz ya da "Kaynakta ayristirilabilir kisi/kurum bilgisi yok." aciklamasini ekle.
+- Kaynaklari kendi kararina gore azaltma, atlama veya sadece en iyi birkac tanesini secme.
 - Cevabi markdown tablo olarak ver: Tarih | Karar | Kisi | Atandigi kurum/gorev | Kaynak.
 - "atanmistir", "atanmasina karar verilmistir", "gorevine atanmistir" ve benzeri ifadeleri atama olarak kabul et.
 - Bir kararda birden fazla kisi varsa her kisiyi ayri satir yaz.
@@ -1286,12 +1290,17 @@ Metin:
         if not context_parts:
             context = "İlgili temiz kaynak bulunamadı."
 
+        source_count = len(context_parts)
+
         prompt = f"""
 DETAY SEVIYESI:
 - Cevap orta detayli olsun; sadece tek cumlelik veya yuzeysel ozet verme.
+- RAG tarafindan {source_count} kaynak verildi. Cevapta bu {source_count} kaynagin tamamini ele al.
+- Her kaynak icin ayri bir madde veya ayri bir tablo satiri yaz; kaynaklari kendi kararina gore azaltma, atlama veya sadece en iyi birkac tanesini secme.
+- Kaynak soruyla zayif ilgiliyse bile onu atlama; "Bu kaynakta soruyla dogrudan ilgili ayrinti sinirli." diyerek kisaca belirt.
 - Her kaynakta soruyla ilgili hangi duzenleme, karar, ilan veya hukmun yer aldigini ayri ayri belirt.
 - Kaynaklar hakkinda verilen bilgiyi eskisine gore biraz daha detayli acikla; ancak ayri "Genel ozet" veya "Sonuc" bolumu yazma.
-- Ayni konuyu tekrarlayan kaynaklari birlestir; farkli tarih veya farkli hukum varsa ayri belirt.
+- Ayni konuyu tekrarlayan kaynaklari birlestirme; her kaynagi kendi kaynak numarasiyla ayri belirt.
 - Kaynaklarda olmayan bilgi, yorum, tahmin veya genel bilgi ekleme.
 
 Sen bir Resmî Gazete analiz asistanısın.
@@ -1304,7 +1313,7 @@ Görevin:
 - Kaynaklarda olmayan bilgi, yorum, tahmin veya genel bilgi ekleme.
 - Kaynaklar kullanıcının sorusuna cevap vermiyorsa sadece "Uygun kaynak bulunamadı." de.
 - Kaynak varsa asla "Bu bilgi verilen kaynaklarda bulunamadı." cümlesini ekleme.
-- Cevabın sonunda "Kullanılan kaynaklar" başlığıyla yararlandığın kaynakları listele.
+- Cevabın sonunda "Kullanılan kaynaklar" başlığıyla RAG tarafından verilen tüm kaynakları listele.
 - Cevabı Türkçe, maddeli ve kısa tut.
 
 SORU:
