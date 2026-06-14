@@ -551,14 +551,6 @@ class RAGEngine:
         url = metadata.get("item_url", "-") or "-"
         snippet = self._source_snippet(text)
 
-        normalized_title = self._normalize_text(title)
-        normalized_category = self._normalize_text(category)
-        terms = self._listing_profile(intent).get("terms", [])
-        if terms and not any(term in normalized_category or term in normalized_title for term in terms):
-            return None
-        if terms and self._is_generic_listing_title(title, intent):
-            return None
-
         cleaned = dict(item)
         cleaned["text"] = text
         cleaned["metadata"] = {
@@ -590,26 +582,13 @@ class RAGEngine:
         raw_results = self.retrieve(search_query, top_k=raw_limit)
         reranked = self._rerank_and_filter_results(question, raw_results, top_k=raw_limit)
 
-        filtered_results = [
-            item for item in reranked
-            if self._matches_intent(intent, item) and self._passes_question_terms(question_terms, item)
-        ]
-        if not filtered_results and question_terms:
-            filtered_results = [
-                item for item in reranked
-                if self._matches_intent(intent, item)
-            ]
+        # Keep vector matches in play. Intent and query terms affect ranking,
+        # but they should not completely discard sources that Qdrant found.
+        filtered_results = reranked or raw_results
         if is_assignment_request:
-            real_assignment_results = [
-                item for item in filtered_results
-                if self._is_real_appointment_decision_source(item)
-            ]
-            if real_assignment_results:
-                filtered_results = real_assignment_results
-            else:
-                title_sources = self._db_appointment_decision_sources(top_k=raw_limit)
-                if title_sources:
-                    filtered_results = title_sources
+            title_sources = self._db_appointment_decision_sources(top_k=raw_limit)
+            if title_sources:
+                filtered_results = filtered_results + title_sources
         filtered_results.sort(
             key=lambda item: (
                 -self._appointment_source_score(item) if is_assignment_request else 0,
@@ -1206,34 +1185,6 @@ CEVAP:
                         category_score += 3
 
             distance = float(item.get("distance", 999))
-
-            if intent == "kanun":
-                looks_like_real_law = (
-                    "kanun" in category
-                    or " kanunu" in title
-                    or title.endswith("kanunu")
-                    or "kanun no" in text
-                    or "kabul tarihi" in text
-                    or "turkiye buyuk millet meclisi" in text
-                    or "tbmm" in text
-                )
-
-                if not looks_like_real_law:
-                    continue
-
-                if negative_score > 0 and "kanun" not in category and "kanunu" not in title:
-                    continue
-
-            elif intent in ["atama", "ihale", "yonetmelik", "teblig", "karar", "universite_kadro"]:
-                if negative_score > 0 and positive_score == 0 and category_score == 0:
-                    continue
-
-                if positive_score == 0 and query_score == 0 and category_score == 0:
-                    continue
-
-            elif intent != "genel":
-                if negative_score > 0 and positive_score == 0:
-                    continue
 
             score = (
                 positive_score * 10
