@@ -1013,6 +1013,8 @@ class RAGEngine:
         if len(person.split()) > 8 or len(position) < 8:
             return True
         normalized_person = self._normalize_text(person)
+        if "recep tayyip erdogan" in normalized_person:
+            return True
         bad_person_terms = {"karar", "resmi", "gazete", "cumhurbaskani", "madde"}
         return any(term in normalized_person for term in bad_person_terms)
 
@@ -1056,6 +1058,10 @@ class RAGEngine:
             return ""
 
         normalized = self._normalize_text(text)
+        decision_blocks = self._appointment_decision_blocks(text, limit)
+        if decision_blocks:
+            return decision_blocks
+
         appointment_terms = [
             "atanmistir",
             "atanmasina",
@@ -1090,6 +1096,34 @@ class RAGEngine:
         excerpt = re.sub(r"\bCumhurba(?:ş|s)kan(?:ı|i)\b", "[IMZA/ONAY MAKAMI]", excerpt, flags=re.I)
         return self._clip_llm_source_text(excerpt, limit)
 
+    def _appointment_decision_blocks(self, text: str, limit: int) -> str:
+        parts = re.split(r"(?=\bKarar\s*:\s*\d{4}/\d+)", text or "", flags=re.I)
+        chunks = []
+        used = 0
+        for part in parts:
+            normalized = self._normalize_text(part)
+            if "karar" not in normalized:
+                continue
+            if not any(term in normalized for term in ["atanmistir", "atanmasina", "gorevine atan", "uyeligine atan"]):
+                continue
+            if self._looks_like_signature_only_chunk(normalized):
+                continue
+
+            clean = part.strip(" .;")
+            clean = re.sub(r"\bRecep\s+Tayyip\s+ERDO(?:Ğ|G)AN\b", "[IMZA MAKAMI]", clean, flags=re.I)
+            clean = re.sub(r"\bCumhurba(?:ş|s)kan(?:ı|i)\b", "[IMZA/ONAY MAKAMI]", clean, flags=re.I)
+            clean = self._clip_llm_source_text(clean, min(500, max(220, limit // 2)))
+            if not clean:
+                continue
+
+            projected = used + len(clean) + 5
+            if chunks and projected > limit:
+                break
+            chunks.append(clean)
+            used = projected
+
+        return " ... ".join(chunks)
+
     def _looks_like_signature_only_chunk(self, normalized: str) -> bool:
         has_signature = "recep tayyip erdogan" in normalized or "cumhurbaskani" in normalized
         has_assignment = any(
@@ -1116,6 +1150,18 @@ class RAGEngine:
             cleaned += "\n\nNot: İmza/onay makamı olduğu anlaşılan Cumhurbaşkanı satırları otomatik çıkarıldı."
         return cleaned
 
+    def _appointment_candidate_lines_for_llm(self, item: Dict) -> str:
+        rows = self._extract_appointment_assignments([item])
+        lines = []
+        for row in rows[:12]:
+            person_norm = self._normalize_text(row.get("person", ""))
+            if "recep tayyip erdogan" in person_norm:
+                continue
+            lines.append(
+                f"- Karar {row.get('decision', '-')}: {row.get('person', '-')} -> {row.get('position', '-')}"
+            )
+        return "\n".join(lines)
+
     def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
         context_parts = []
         source_limit = self._llm_source_char_limit("LLM_APPOINTMENT_SOURCE_CHAR_LIMIT", 900)
@@ -1125,6 +1171,7 @@ class RAGEngine:
                 self._appointment_text_for_extraction(item),
                 source_limit,
             )
+            candidates = self._appointment_candidate_lines_for_llm(item) or "Yok"
 
             context_parts.append(
                 f"""
@@ -1136,6 +1183,9 @@ URL: {metadata.get('item_url', '-')}
 
 Metin:
 {text}
+
+On isleme ile bulunan aday atama satirlari:
+{candidates}
 """
             )
 
@@ -1149,10 +1199,12 @@ Gorev:
 - RAG tarafindan {source_count} kaynak verildi. KAYNAK 1'den KAYNAK {source_count}'e kadar butun kaynaklari cevapta ele al.
 - Her kaynak icin ya atama satirlarini yaz ya da "Kaynakta ayristirilabilir kisi/kurum bilgisi yok." aciklamasini ekle.
 - Kaynaklari kendi kararina gore azaltma, atlama veya sadece en iyi birkac tanesini secme.
+- "On isleme ile bulunan aday atama satirlari" bolumunde kisi/gorev adayi varsa bunlari oncelikle tabloya yaz.
 - Cevabi markdown tablo olarak ver: Tarih | Karar | Kisi | Atandigi kurum/gorev | Kaynak.
 - "atanmistir", "atanmasina karar verilmistir", "gorevine atanmistir" ve benzeri ifadeleri atama olarak kabul et.
 - Recep Tayyip Erdogan / Recep Tayyip ERDOGAN / Cumhurbaskani ifadeleri genellikle imza veya onay makamidir; bunlari atanmis kisi olarak ASLA yazma.
 - Karar metnindeki imza, makam, yayim ve onay satirlarini atama satiri olarak kullanma.
+- Imza/onay makamlarini ele ama diger kisi adlarini eleme; gercek atanan kisi adlarini mutlaka goster.
 - Bir kararda birden fazla kisi varsa her kisiyi ayri satir yaz.
 - Kisi adini ve kurum/gorevi tahmin etme; kaynakta acik degilse satir yazma.
 - Kaynak metinleri ilgili ama hic kisi/kurum cifti ayrismiyorsa sadece "Kaynakta ayristirilabilir kisi/kurum bilgisi yok." de.
