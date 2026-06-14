@@ -1035,12 +1035,12 @@ class RAGEngine:
 
     def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
         context_parts = []
-        for i, item in enumerate(sources[:8], start=1):
+        for i, item in enumerate(sources, start=1):
             metadata = item.get("metadata", {}) or {}
             text = self._appointment_text_for_extraction(item)
             text = re.sub(r"\s+", " ", text or "").strip()
-            if len(text) > 12000:
-                text = text[:12000].rsplit(" ", 1)[0] + "..."
+            if len(text) > 9000:
+                text = text[:9000].rsplit(" ", 1)[0] + "..."
 
             context_parts.append(
                 f"""
@@ -1336,9 +1336,6 @@ CEVAP:
             return "Uygun kaynak bulunamadı."
 
         if self._is_appointment_assignment_request(question):
-            rows = self._extract_appointment_assignments(sources)
-            if rows:
-                return self._format_appointment_assignments(question, sources)
             if LLMClient is not None:
                 prompt = self._build_appointment_extraction_prompt(question, sources)
                 llm = LLMClient(model=model)
