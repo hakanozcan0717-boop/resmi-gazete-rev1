@@ -12,6 +12,10 @@ class LLMClient:
             raise ValueError("GROQ_API_KEY bulunamadı.")
 
         self.model = model or os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        try:
+            self.max_tokens = int(os.getenv("GROQ_MAX_TOKENS", "900"))
+        except ValueError:
+            self.max_tokens = 900
 
         self.client = OpenAI(
             api_key=self.api_key,
@@ -32,6 +36,7 @@ class LLMClient:
                 }
             ],
             temperature=0.2,
+            max_tokens=self.max_tokens,
         )
 
         return response.choices[0].message.content

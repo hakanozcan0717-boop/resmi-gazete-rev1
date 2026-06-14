@@ -17,6 +17,7 @@ Amaç:
 
 from __future__ import annotations
 
+import os
 import re
 import unicodedata
 from typing import Dict, List, Optional
@@ -1033,14 +1034,30 @@ class RAGEngine:
         match = re.search(r"Karar\s*:\s*(\d{4}/\d+)", text or "", re.I)
         return match.group(1) if match else "-"
 
+    def _llm_source_char_limit(self, env_name: str, default: int) -> int:
+        try:
+            value = int(os.getenv(env_name, str(default)))
+        except (TypeError, ValueError):
+            value = default
+        return max(300, min(value, 5000))
+
+    def _clip_llm_source_text(self, text: str, limit: int) -> str:
+        text = clean_extracted_text(text or "")
+        text = re.sub(r"\s+", " ", text).strip()
+        if len(text) <= limit:
+            return text
+        clipped = text[:limit].rsplit(" ", 1)[0].strip()
+        return clipped + "..."
+
     def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
         context_parts = []
+        source_limit = self._llm_source_char_limit("LLM_APPOINTMENT_SOURCE_CHAR_LIMIT", 900)
         for i, item in enumerate(sources, start=1):
             metadata = item.get("metadata", {}) or {}
-            text = self._appointment_text_for_extraction(item)
-            text = re.sub(r"\s+", " ", text or "").strip()
-            if len(text) > 9000:
-                text = text[:9000].rsplit(" ", 1)[0] + "..."
+            text = self._clip_llm_source_text(
+                self._appointment_text_for_extraction(item),
+                source_limit,
+            )
 
             context_parts.append(
                 f"""
@@ -1268,9 +1285,11 @@ CEVAP:
         results = sources if sources is not None else self.prepare_sources(question, top_k=top_k)
 
         context_parts = []
+        source_limit = self._llm_source_char_limit("LLM_SOURCE_CHAR_LIMIT", 800)
 
         for i, item in enumerate(results, start=1):
             metadata = item["metadata"]
+            text = self._clip_llm_source_text(item.get("text", ""), source_limit)
 
             context_parts.append(
                 f"""
@@ -1282,7 +1301,7 @@ URL: {metadata.get('item_url', '-')}
 Hybrid skor: {item.get('hybrid_score')}
 
 Metin:
-{item["text"]}
+{text}
 """
             )
 
