@@ -1043,6 +1043,13 @@ class RAGEngine:
             value = default
         return max(300, min(value, 5000))
 
+    def _llm_total_char_limit(self, env_name: str, default: int) -> int:
+        try:
+            value = int(os.getenv(env_name, str(default)))
+        except (TypeError, ValueError):
+            value = default
+        return max(3000, min(value, 18000))
+
     def _clip_llm_source_text(self, text: str, limit: int) -> str:
         text = clean_extracted_text(text or "")
         text = re.sub(r"\s+", " ", text).strip()
@@ -1112,7 +1119,7 @@ class RAGEngine:
             clean = part.strip(" .;")
             clean = re.sub(r"\bRecep\s+Tayyip\s+ERDO(?:Ğ|G)AN\b", "[IMZA MAKAMI]", clean, flags=re.I)
             clean = re.sub(r"\bCumhurba(?:ş|s)kan(?:ı|i)\b", "[IMZA/ONAY MAKAMI]", clean, flags=re.I)
-            clean = self._clip_llm_source_text(clean, min(500, max(220, limit // 2)))
+            clean = self._clip_llm_source_text(clean, min(900, max(350, limit // 2)))
             if not clean:
                 continue
 
@@ -1164,7 +1171,9 @@ class RAGEngine:
 
     def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
         context_parts = []
-        source_limit = self._llm_source_char_limit("LLM_APPOINTMENT_SOURCE_CHAR_LIMIT", 900)
+        max_source_limit = self._llm_source_char_limit("LLM_APPOINTMENT_SOURCE_CHAR_LIMIT", 3000)
+        total_limit = self._llm_total_char_limit("LLM_APPOINTMENT_TOTAL_CHAR_LIMIT", 12000)
+        source_limit = min(max_source_limit, max(900, total_limit // max(len(sources), 1)))
         for i, item in enumerate(sources, start=1):
             metadata = item.get("metadata", {}) or {}
             text = self._appointment_llm_excerpt(
@@ -1201,6 +1210,8 @@ Gorev:
 - Kaynaklari kendi kararina gore azaltma, atlama veya sadece en iyi birkac tanesini secme.
 - "On isleme ile bulunan aday atama satirlari" bolumunde kisi/gorev adayi varsa bunlari oncelikle tabloya yaz.
 - Cevabi markdown tablo olarak ver: Tarih | Karar | Kisi | Atandigi kurum/gorev | Kaynak.
+- Kisi veya gorev bilgisi ilk bakista cikmiyorsa once Metin bolumundeki daha genis karar metninden asıl atanan kisi/gorev listesini cikarmaya calis.
+- Karakter siniri nedeniyle hala ayrisitirilamayan kararlar kalirsa bunlari "Ayrisitirilamayan kaynaklar" olarak kisa not et.
 - "atanmistir", "atanmasina karar verilmistir", "gorevine atanmistir" ve benzeri ifadeleri atama olarak kabul et.
 - Recep Tayyip Erdogan / Recep Tayyip ERDOGAN / Cumhurbaskani ifadeleri genellikle imza veya onay makamidir; bunlari atanmis kisi olarak ASLA yazma.
 - Karar metnindeki imza, makam, yayim ve onay satirlarini atama satiri olarak kullanma.
