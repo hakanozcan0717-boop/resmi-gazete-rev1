@@ -1054,6 +1054,51 @@ class RAGEngine:
         match = re.search(r"Karar\s*:\s*(\d{4}/\d+)", text or "", re.I)
         return match.group(1) if match else "-"
 
+    def _build_appointment_extraction_prompt(self, question: str, sources: List[Dict]) -> str:
+        context_parts = []
+        for i, item in enumerate(sources[:8], start=1):
+            metadata = item.get("metadata", {}) or {}
+            text = self._appointment_text_for_extraction(item)
+            text = re.sub(r"\s+", " ", text or "").strip()
+            if len(text) > 12000:
+                text = text[:12000].rsplit(" ", 1)[0] + "..."
+
+            context_parts.append(
+                f"""
+[KAYNAK {i}]
+Tarih: {metadata.get('date', '-')}
+Baslik: {metadata.get('title', '-')}
+Kategori: {metadata.get('category', '-')}
+URL: {metadata.get('item_url', '-')}
+
+Metin:
+{text}
+"""
+            )
+
+        context = "\n".join(context_parts).strip() or "Ilgili kaynak metni yok."
+        return f"""
+Sen Resmi Gazete atama kararlarindan kisi ve kurum/gorev tablosu cikaran bir asistansin.
+
+Gorev:
+- Sadece asagidaki kaynak metinlerinde acikca gorunen atama bilgilerini kullan.
+- Cevabi markdown tablo olarak ver: Tarih | Karar | Kisi | Atandigi kurum/gorev | Kaynak.
+- "atanmistir", "atanmasina karar verilmistir", "gorevine atanmistir" ve benzeri ifadeleri atama olarak kabul et.
+- Bir kararda birden fazla kisi varsa her kisiyi ayri satir yaz.
+- Kisi adini ve kurum/gorevi tahmin etme; kaynakta acik degilse satir yazma.
+- Kaynak metinleri ilgili ama hic kisi/kurum cifti ayrismiyorsa sadece "Kaynakta ayristirilabilir kisi/kurum bilgisi yok." de.
+- Kaynaklar soruya cevap vermiyorsa sadece "Uygun kaynak bulunamadi." de.
+- Cevabi Turkce ver.
+
+SORU:
+{question}
+
+KAYNAKLAR:
+{context}
+
+CEVAP:
+""".strip()
+
     def _format_appointment_assignments(self, question: str, results: List[Dict]) -> str:
         rows = self._extract_appointment_assignments(results)
         lines = [f"Soru: {question}", ""]
@@ -1331,6 +1376,13 @@ CEVAP:
             return "Uygun kaynak bulunamadı."
 
         if self._is_appointment_assignment_request(question):
+            rows = self._extract_appointment_assignments(sources)
+            if rows:
+                return self._format_appointment_assignments(question, sources)
+            if LLMClient is not None:
+                prompt = self._build_appointment_extraction_prompt(question, sources)
+                llm = LLMClient(model=model)
+                return llm.generate_answer(prompt)
             return self._format_appointment_assignments(question, sources)
 
         if LLMClient is None:
