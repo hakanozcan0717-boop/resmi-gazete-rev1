@@ -154,6 +154,56 @@ def create_app(db_path: str = DEFAULT_DB):
             _job_log(job_id, traceback.format_exc())
             _set_job(job_id, status="failed", error=str(exc), finished_at=dt.datetime.now().isoformat(timespec="seconds"))
 
+    def _run_index_job(job_id: str, start_date: str, end_date: str) -> None:
+        _set_job(job_id, status="running", started_at=dt.datetime.now().isoformat(timespec="seconds"))
+        try:
+            job_db = GazetteDB(db_path)
+            date_counts = _date_counts(job_db, start_date, end_date)
+            document_count = sum(int(row["belge_sayisi"]) for row in date_counts)
+
+            _job_log(job_id, f"[DB] indekslenecek tarih araligi: {start_date} - {end_date}")
+            for row in date_counts:
+                _job_log(job_id, f"[DB] {row['date']}: {row['belge_sayisi']} belge")
+
+            if document_count <= 0:
+                _job_log(job_id, "[QDRANT] PostgreSQL'de bu aralikta belge bulunamadi.")
+                _set_job(
+                    job_id,
+                    status="empty",
+                    finished_at=dt.datetime.now().isoformat(timespec="seconds"),
+                    found=0,
+                    inserted=0,
+                    skipped=0,
+                    errors=0,
+                    indexed_chunks=0,
+                    date_counts=[],
+                )
+                return
+
+            _job_log(job_id, f"[QDRANT] indeksleme basliyor: {document_count} belge")
+            captured = io.StringIO()
+            with contextlib.redirect_stdout(captured), contextlib.redirect_stderr(captured):
+                rag = RAGEngine(db_path=db_path, vector_db_path="vector_db")
+                indexed_chunks = rag.build_index(start_date=start_date, end_date=end_date)
+            _log_captured_output(job_id, captured.getvalue())
+            _job_log(job_id, f"[QDRANT] parca={indexed_chunks}")
+
+            _set_job(
+                job_id,
+                status="completed",
+                finished_at=dt.datetime.now().isoformat(timespec="seconds"),
+                found=document_count,
+                inserted=0,
+                skipped=0,
+                errors=0,
+                indexed_chunks=indexed_chunks,
+                date_counts=[dict(row) for row in date_counts],
+            )
+        except Exception as exc:
+            _job_log(job_id, "[HATA] " + str(exc))
+            _job_log(job_id, traceback.format_exc())
+            _set_job(job_id, status="failed", error=str(exc), finished_at=dt.datetime.now().isoformat(timespec="seconds"))
+
     @app.route("/")
     def index():
         rows = db.list_items(limit=50)
@@ -306,6 +356,49 @@ def create_app(db_path: str = DEFAULT_DB):
             }
 
         thread = threading.Thread(target=_run_crawl_job, args=(job_id, start_date, end_date, should_index), daemon=True)
+        thread.start()
+        return jsonify({"job_id": job_id, "status_url": f"/admin/jobs/{job_id}"})
+
+    @app.route("/admin/index", methods=["POST"])
+    def admin_index():
+        if not _admin_authorized():
+            return jsonify({"error": "unauthorized"}), 401
+
+        payload = request.get_json(silent=True) or {}
+        start_date = (request.form.get("start") or payload.get("start") or "").strip()
+        end_date = (request.form.get("end") or payload.get("end") or "").strip()
+
+        if not start_date or not end_date:
+            return jsonify({"error": "start ve end zorunlu; format YYYY-MM-DD"}), 400
+
+        try:
+            start = parse_date(start_date)
+            end = parse_date(end_date)
+            if start > end:
+                return jsonify({"error": "start tarihi end tarihinden buyuk olmamali"}), 400
+        except Exception as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        with admin_jobs_lock:
+            global LATEST_ADMIN_JOB_ID
+            for job in admin_jobs.values():
+                if job.get("status") in {"queued", "running"}:
+                    return jsonify({"error": "zaten calisan bir job var", "job": _public_job(job)}), 409
+
+            job_id = uuid.uuid4().hex[:12]
+            LATEST_ADMIN_JOB_ID = job_id
+            admin_jobs[job_id] = {
+                "id": job_id,
+                "status": "queued",
+                "type": "qdrant_index",
+                "start": start_date,
+                "end": end_date,
+                "index": True,
+                "created_at": dt.datetime.now().isoformat(timespec="seconds"),
+                "logs": [],
+            }
+
+        thread = threading.Thread(target=_run_index_job, args=(job_id, start_date, end_date), daemon=True)
         thread.start()
         return jsonify({"job_id": job_id, "status_url": f"/admin/jobs/{job_id}"})
 

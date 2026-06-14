@@ -29,6 +29,7 @@
     </div>
 
     <button type="button" onclick="startCrawl()">Veriyi Cek</button>
+    <button type="button" onclick="startIndexOnly()">Sadece Qdrant'a Isle</button>
     <button type="button" onclick="loadLatestJob()">Son Isi Getir</button>
     <button type="button" onclick="loadQdrantDates()">Qdrant Tarihleri</button>
     <button type="button" onclick="refreshJob()" id="refreshBtn" style="display:none;">Durumu Yenile</button>
@@ -126,6 +127,47 @@ async function startCrawl() {
         pollTimer = setInterval(refreshJob, 5000);
     } catch (error) {
         showStatus("Istek hatasi: " + error);
+    }
+}
+
+async function startIndexOnly() {
+    const start = document.getElementById("start").value;
+    const end = document.getElementById("end").value;
+    const token = document.getElementById("token").value.trim();
+
+    if (!start || !end || !token) {
+        showStatus("Tarih ve token zorunlu.");
+        return;
+    }
+
+    currentToken = token;
+    showStatus("PostgreSQL kayitlari Qdrant'a isleniyor...");
+
+    try {
+        const response = await fetch("/admin/index", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Admin-Token": token
+            },
+            body: JSON.stringify({ start: start, end: end })
+        });
+        const data = await response.json();
+        showOutput(data);
+
+        if (!response.ok) {
+            showStatus("Qdrant isleme baslatilamadi: HTTP " + response.status + " - " + (data.error || "hata"));
+            return;
+        }
+
+        currentJobId = data.job_id;
+        document.getElementById("refreshBtn").style.display = "inline-block";
+        showStatus("Qdrant isleme basladi. Durum izleniyor...");
+        refreshJob();
+        if (pollTimer) clearInterval(pollTimer);
+        pollTimer = setInterval(refreshJob, 5000);
+    } catch (error) {
+        showStatus("Qdrant isleme istegi hatasi: " + error);
     }
 }
 
