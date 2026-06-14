@@ -38,7 +38,7 @@ class HttpClient:
                         return 0, b"", ""
                     try:
                         print(f"[DENEME] {try_url} - {attempt}. deneme")
-                        status, content, content_type = self._requests_get(try_url, headers)
+                        status, content, content_type = self._requests_get(try_url, headers, started_at)
                         if status == 200 and content:
                             return status, content, content_type
                         print(f"[UYARI] HTTP durum kodu: {status} - {try_url}", file=sys.stderr)
@@ -56,7 +56,16 @@ class HttpClient:
                 import urllib.request
                 req = urllib.request.Request(try_url, headers=headers)
                 with urllib.request.urlopen(req, timeout=self._read_timeout_for(try_url)) as resp:
-                    return resp.status, resp.read(), resp.headers.get("content-type", "")
+                    chunks = []
+                    while True:
+                        if self._request_deadline_exceeded(started_at):
+                            print(f"[URLLIB ATLA] Okuma sure siniri asildi: {try_url}", file=sys.stderr)
+                            return 0, b"", resp.headers.get("content-type", "")
+                        chunk = resp.read(1024 * 128)
+                        if not chunk:
+                            break
+                        chunks.append(chunk)
+                    return resp.status, b"".join(chunks), resp.headers.get("content-type", "")
             except Exception as exc:
                 print(f"[URLLIB HATA] {try_url}: {exc}", file=sys.stderr)
         return 0, b"", ""
@@ -88,7 +97,7 @@ class HttpClient:
             "Connection": "close",
         }
 
-    def _requests_get(self, url: str, headers: Dict[str, str]) -> Tuple[int, bytes, str]:
+    def _requests_get(self, url: str, headers: Dict[str, str], started_at: float) -> Tuple[int, bytes, str]:
         read_timeout = self._read_timeout_for(url)
         timeout = (self.connect_timeout, read_timeout)
         with self.session.get(url, timeout=timeout, allow_redirects=True, headers=headers, stream=True) as response:
@@ -99,6 +108,9 @@ class HttpClient:
 
             chunks = []
             for chunk in response.iter_content(chunk_size=1024 * 128):
+                if self._request_deadline_exceeded(started_at):
+                    print(f"[HTTP ATLA] Okuma sure siniri asildi: {url}", file=sys.stderr)
+                    return 0, b"", content_type
                 if chunk:
                     chunks.append(chunk)
             return response.status_code, b"".join(chunks), content_type
